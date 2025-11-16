@@ -1,0 +1,509 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
+
+contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
+    constructor() Ownable(msg.sender) {}
+
+    // ------------------------
+    // ERRORS
+    // ------------------------
+    error UserAlreadyExists();
+    error UserNotRegistered();
+    error ContactAlreadyAdded();
+    error ContractNotFound();
+    error NotAuthorized();
+    error AlreadySigned();
+    error AlreadyDenied();
+    error PropertyNotFound();
+    error TransferNotFound();
+    error InsufficientFunds();
+    error TransferAlreadyProcessed();
+    error ContractAlreadyFinalized();
+
+    // ------------------------
+    // STRUCTS & STORAGE
+    // ------------------------
+
+    // --------- UserLib ---------
+    struct User {
+        bytes32 username;
+        bytes32 panHash;
+        address wallet;
+        bool exists;
+    }
+
+    struct UserState {
+        mapping(address => User) users;
+        mapping(bytes32 => address) usernameToWallet;
+        address[] allUsers;
+    }
+
+    UserState private userState;
+
+    // --------- ContactLib ---------
+    struct ContactState {
+        mapping(address => address[]) contacts;
+    }
+
+    ContactState private contactState;
+
+    // --------- ContractSignLib ---------
+    enum ContractStatus {
+        PENDING,
+        COMPLETED,
+        CANCELED
+    }
+
+    struct MultiPartyContract {
+        uint256 id;
+        bytes32 cid;
+        address creator;
+        address[] signers;
+        mapping(address => bool) signed;
+        mapping(address => bool) denied;
+        ContractStatus status;
+        uint256 signedCount;
+    }
+
+    struct ContractState {
+        uint256 nextId;
+        mapping(uint256 => MultiPartyContract) contracts;
+        mapping(address => uint256[]) createdByUser;
+        mapping(address => uint256[]) signedByUser;
+        // All contracts where a user is listed as a signer
+        mapping(address => uint256[]) contractsWhereParty;
+    }
+
+    ContractState private contractState;
+
+    // --------- Property & Escrow ---------
+    struct Property {
+        uint256 id;
+        bytes32 cid;
+        address owner;
+        uint256 registeredAt;
+        bool exists;
+    }
+
+    struct PropertyTransfer {
+        uint256 propertyId;
+        address buyer;
+        uint256 price;
+        uint256 initiatedAt;
+        bool accepted;
+        bool processed;
+    }
+
+    struct PropertyOwnershipRecord {
+        address previousOwner;
+        address newOwner;
+        uint256 transferDate;
+    }
+
+    struct PropertyState {
+        uint256 nextId;
+        mapping(uint256 => Property) properties;
+        mapping(address => uint256[]) ownerProperties;
+        mapping(uint256 => PropertyTransfer) transfers;
+        mapping(uint256 => PropertyOwnershipRecord[]) ownershipHistory;
+    }
+
+    PropertyState private propertyState;
+
+    // ------------------------
+    // EVENTS
+    // ------------------------
+    event UserRegistered(address wallet, bytes32 username);
+    event ContactAdded(address user, address contact);
+    event ContractCreated(uint256 id, address creator, bytes32 cid);
+    event ContractSigned(uint256 id, address signer);
+    event ContractDenied(uint256 id, address signer);
+    event ContractCanceled(uint256 id, address caller);
+    event ContractCompleted(uint256 id);
+
+    event PropertyRegistered(uint256 propertyId, address owner, bytes32 cid);
+    event PropertyTransferRequested(
+        uint256 propertyId,
+        address buyer,
+        uint256 price
+    );
+    event PropertyTransferAccepted(uint256 propertyId, address buyer);
+    event PropertyTransferDenied(uint256 propertyId, address buyer);
+    event PropertyTransferCompleted(
+        uint256 propertyId,
+        address buyer,
+        address seller,
+        uint256 price
+    );
+
+    // ------------------------
+    // USER FUNCTIONS
+    // ------------------------
+    function registerUser(
+        bytes32 username,
+        bytes32 panHash
+    ) external whenNotPaused {
+        if (userState.users[msg.sender].exists) revert UserAlreadyExists();
+        if (userState.usernameToWallet[username] != address(0))
+            revert UserAlreadyExists();
+
+        userState.users[msg.sender] = User(username, panHash, msg.sender, true);
+        userState.usernameToWallet[username] = msg.sender;
+        userState.allUsers.push(msg.sender);
+
+        emit UserRegistered(msg.sender, username);
+    }
+
+    function isUserRegistered(address wallet) external view returns (bool) {
+        return userState.users[wallet].exists;
+    }
+
+    function fetchUserDetail(
+        address wallet
+    ) external view returns (User memory) {
+        if (!userState.users[wallet].exists) revert UserNotRegistered();
+        return userState.users[wallet];
+    }
+
+    function fetchAllUsers() external view returns (User[] memory) {
+        uint256 len = userState.allUsers.length;
+        User[] memory list = new User[](len);
+
+        for (uint256 i = 0; i < len; i++)
+            list[i] = userState.users[userState.allUsers[i]];
+
+        return list;
+    }
+
+    // ------------------------
+    // CONTACT FUNCTIONS
+    // ------------------------
+    function addToMyContacts(address contact) external whenNotPaused {
+        address[] storage myContacts = contactState.contacts[msg.sender];
+
+        for (uint256 i = 0; i < myContacts.length; i++)
+            if (myContacts[i] == contact) revert ContactAlreadyAdded();
+
+        myContacts.push(contact);
+        emit ContactAdded(msg.sender, contact);
+    }
+
+    function fetchMyContacts(
+        address wallet
+    ) external view returns (User[] memory) {
+        address[] storage wallets = contactState.contacts[wallet];
+        User[] memory list = new User[](wallets.length);
+
+        for (uint256 i = 0; i < wallets.length; i++)
+            list[i] = userState.users[wallets[i]];
+
+        return list;
+    }
+
+    // ------------------------
+    // MULTI-PARTY CONTRACTS
+    // ------------------------
+    function createContract(
+        bytes32 cid,
+        address[] calldata signers
+    ) external whenNotPaused {
+        uint256 id = contractState.nextId++;
+
+        MultiPartyContract storage c = contractState.contracts[id];
+        c.id = id;
+        c.cid = cid;
+        c.creator = msg.sender;
+        c.signers = signers;
+        c.status = ContractStatus.PENDING;
+        c.signedCount = 0;
+
+        // Track creator
+        contractState.createdByUser[msg.sender].push(id);
+
+        // Track each signer
+        for (uint256 i = 0; i < signers.length; i++) {
+            contractState.contractsWhereParty[signers[i]].push(id);
+        }
+
+        emit ContractCreated(id, msg.sender, cid);
+    }
+
+    function signContract(uint256 contractId) external whenNotPaused {
+        MultiPartyContract storage c = contractState.contracts[contractId];
+        if (c.creator == address(0)) revert ContractNotFound();
+
+        if (c.status != ContractStatus.PENDING)
+            revert ContractAlreadyFinalized();
+
+        bool isSigner = false;
+        for (uint256 i = 0; i < c.signers.length; i++) {
+            if (c.signers[i] == msg.sender) {
+                isSigner = true;
+                break;
+            }
+        }
+        if (!isSigner) revert NotAuthorized();
+        if (c.signed[msg.sender]) revert AlreadySigned();
+        if (c.denied[msg.sender]) revert AlreadyDenied();
+
+        // Mark signer
+        c.signed[msg.sender] = true;
+        c.signedCount++;
+
+        contractState.signedByUser[msg.sender].push(contractId);
+
+        emit ContractSigned(contractId, msg.sender);
+
+        // Auto-complete when everyone signed
+        if (c.signedCount == c.signers.length) {
+            c.status = ContractStatus.COMPLETED;
+            emit ContractCompleted(contractId);
+        }
+    }
+
+    function denyContract(uint256 contractId) external whenNotPaused {
+        MultiPartyContract storage c = contractState.contracts[contractId];
+        if (c.creator == address(0)) revert ContractNotFound();
+
+        if (c.status != ContractStatus.PENDING)
+            revert ContractAlreadyFinalized();
+
+        bool isSigner = false;
+        for (uint256 i = 0; i < c.signers.length; i++) {
+            if (c.signers[i] == msg.sender) {
+                isSigner = true;
+                break;
+            }
+        }
+        if (!isSigner) revert NotAuthorized();
+        if (c.signed[msg.sender]) revert AlreadySigned();
+        if (c.denied[msg.sender]) revert AlreadyDenied();
+
+        // Mark denied
+        c.denied[msg.sender] = true;
+
+        contractState.signedByUser[msg.sender].push(contractId);
+
+        emit ContractDenied(contractId, msg.sender);
+
+        // Auto-cancel if ANY signer denies
+        c.status = ContractStatus.CANCELED;
+        emit ContractCanceled(contractId, msg.sender);
+    }
+
+    function cancelContract(uint256 contractId) external whenNotPaused {
+        MultiPartyContract storage c = contractState.contracts[contractId];
+        if (c.creator != msg.sender) revert NotAuthorized();
+
+        if (c.status != ContractStatus.PENDING)
+            revert ContractAlreadyFinalized();
+
+        c.status = ContractStatus.CANCELED;
+        emit ContractCanceled(contractId, msg.sender);
+    }
+
+    function retrieveContractInfo(
+        uint256 contractId
+    )
+        external
+        view
+        returns (
+            uint256 id,
+            bytes32 cid,
+            address creator,
+            address[] memory signers,
+            ContractStatus status,
+            uint256 signedCount
+        )
+    {
+        MultiPartyContract storage c = contractState.contracts[contractId];
+        if (c.creator == address(0)) revert ContractNotFound();
+
+        return (c.id, c.cid, c.creator, c.signers, c.status, c.signedCount);
+    }
+
+    function hasUserSigned(
+        uint256 contractId,
+        address user
+    ) external view returns (bool) {
+        MultiPartyContract storage c = contractState.contracts[contractId];
+        if (c.creator == address(0)) revert ContractNotFound();
+        return c.signed[user];
+    }
+
+    function hasUserDenied(
+        uint256 contractId,
+        address user
+    ) external view returns (bool) {
+        MultiPartyContract storage c = contractState.contracts[contractId];
+        if (c.creator == address(0)) revert ContractNotFound();
+        return c.denied[user];
+    }
+
+    // Get contract ids where address is a party
+    function getContractsWhereUserIsParty(
+        address user
+    ) external view returns (uint256[] memory) {
+        return contractState.contractsWhereParty[user];
+    }
+
+    // ------------------------
+    // PROPERTY FUNCTIONS (UPGRADED)
+    // ------------------------
+
+    // Register property -> records registeredAt + initial ownership history
+    function registerProperty(bytes32 cid) external whenNotPaused {
+        uint256 id = propertyState.nextId++;
+
+        propertyState.properties[id] = Property({
+            id: id,
+            cid: cid,
+            owner: msg.sender,
+            registeredAt: block.timestamp,
+            exists: true
+        });
+
+        propertyState.ownerProperties[msg.sender].push(id);
+
+        // initial ownership record (previousOwner = address(0))
+        propertyState.ownershipHistory[id].push(
+            PropertyOwnershipRecord({
+                previousOwner: address(0),
+                newOwner: msg.sender,
+                transferDate: block.timestamp
+            })
+        );
+
+        emit PropertyRegistered(id, msg.sender, cid);
+    }
+
+    // Retrieve properties owned by a user
+    function retrieveUserProperties(
+        address owner
+    ) external view returns (Property[] memory) {
+        uint256[] storage ids = propertyState.ownerProperties[owner];
+        Property[] memory list = new Property[](ids.length);
+
+        for (uint256 i = 0; i < ids.length; i++) list[i] = propertyState.properties[ids[i]];
+
+        return list;
+    }
+
+    // Fetch property basic info (includes registeredAt)
+    function retrievePropertyInfo(
+        uint256 id
+    ) external view returns (Property memory) {
+        if (!propertyState.properties[id].exists) revert PropertyNotFound();
+        return propertyState.properties[id];
+    }
+
+    // Get full ownership history records
+    function getPropertyOwnershipHistory(
+        uint256 id
+    ) external view returns (PropertyOwnershipRecord[] memory) {
+        return propertyState.ownershipHistory[id];
+    }
+
+    // Buyer initiates a transfer by sending funds (escrow)
+    function initiatePropertyTransfer(
+        uint256 propertyId
+    ) external payable whenNotPaused nonReentrant {
+        Property storage p = propertyState.properties[propertyId];
+        if (!p.exists) revert PropertyNotFound();
+        if (p.owner == msg.sender) revert NotAuthorized();
+        if (msg.value == 0) revert InsufficientFunds();
+
+        propertyState.transfers[propertyId] = PropertyTransfer({
+            propertyId: propertyId,
+            buyer: msg.sender,
+            price: msg.value,
+            initiatedAt: block.timestamp,
+            accepted: false,
+            processed: false
+        });
+
+        emit PropertyTransferRequested(propertyId, msg.sender, msg.value);
+    }
+
+    // Seller can view current transfer for a property
+    function getPropertyTransfer(
+        uint256 propertyId
+    ) external view returns (PropertyTransfer memory) {
+        return propertyState.transfers[propertyId];
+    }
+
+    // Seller accepts transfer -> ownership updated + history recorded + funds forwarded
+    function acceptPropertyTransfer(
+        uint256 propertyId
+    ) external whenNotPaused nonReentrant {
+        Property storage p = propertyState.properties[propertyId];
+        if (!p.exists) revert PropertyNotFound();
+
+        PropertyTransfer storage t = propertyState.transfers[propertyId];
+        if (t.processed) revert TransferAlreadyProcessed();
+        if (p.owner != msg.sender) revert NotAuthorized();
+
+        t.accepted = true;
+        t.processed = true;
+
+        address buyer = t.buyer;
+        uint256 amount = t.price;
+
+        address previousOwner = p.owner;
+
+        // Transfer ownership
+        p.owner = buyer;
+        propertyState.ownerProperties[buyer].push(propertyId);
+
+        // Record ownership change
+        propertyState.ownershipHistory[propertyId].push(
+            PropertyOwnershipRecord({
+                previousOwner: previousOwner,
+                newOwner: buyer,
+                transferDate: block.timestamp
+            })
+        );
+
+        emit PropertyTransferAccepted(propertyId, buyer);
+
+        // Forward funds to seller
+        (bool sent, ) = msg.sender.call{value: amount}("");
+        require(sent, "Payment failed");
+
+        emit PropertyTransferCompleted(propertyId, buyer, previousOwner, amount);
+    }
+
+    // Seller denies transfer -> refund buyer
+    function denyPropertyTransfer(
+        uint256 propertyId
+    ) external whenNotPaused nonReentrant {
+        Property storage p = propertyState.properties[propertyId];
+        if (!p.exists) revert PropertyNotFound();
+
+        PropertyTransfer storage t = propertyState.transfers[propertyId];
+        if (t.processed) revert TransferAlreadyProcessed();
+        if (p.owner != msg.sender) revert NotAuthorized();
+
+        t.processed = true;
+
+        (bool sent, ) = t.buyer.call{value: t.price}("");
+        require(sent, "Refund failed");
+
+        emit PropertyTransferDenied(propertyId, t.buyer);
+    }
+
+    // ------------------------
+    // ADMIN
+    // ------------------------
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+}
