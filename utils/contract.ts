@@ -98,99 +98,6 @@ export async function getContactsForWallet(walletAddr: string) {
 }
 
 /* --------------------------------------------------
-   PROPERTIES
------------------------------------------------------ */
-export async function registerProperty(ipfsCID: string) {
-  const signer = await getSigner();
-  const contract = getContract(signer);
-  const tx = await contract.registerProperty(ipfsCidToBytes32Hash(ipfsCID));
-  return tx.wait();
-}
-
-/* ⭐ FIXED: retrieveUserProperties returns struct[] */
-export async function getUserProperties(ownerAddress: string) {
-  const contract = getContract();
-  const props: any[] = await contract.retrieveUserProperties(ownerAddress);
-
-  return props.map((p: any) => ({
-    id: Number(p.id ?? p[0]),
-    cid: p.cid ?? p[1],
-    owner: String(p.owner ?? p[2]),
-    exists: Boolean(p.exists ?? p[3])
-  }));
-}
-
-/* Single property */
-export async function getProperty(propertyId: number) {
-  if (isNaN(propertyId)) throw new Error("Invalid propertyId");
-
-  const contract = getContract();
-  const p: any = await contract.retrievePropertyInfo(propertyId);
-
-  return {
-    id: Number(p.id ?? p[0]),
-    cid: p.cid ?? p[1],
-    owner: String(p.owner ?? p[2]),
-    exists: Boolean(p.exists ?? p[3])
-  };
-}
-
-/* Property ownership history */
-export async function getPropertyOwnershipHistory(propertyId: number) {
-  const contract = getContract();
-  return contract.getPropertyOwnershipHistory(propertyId);
-}
-
-/* --------------------------------------------------
-   PROPERTY TRANSFERS (ESCROW)
------------------------------------------------------ */
-export async function createOffer(propertyId: number, priceWei: string) {
-  const signer = await getSigner();
-  const contract = getContract(signer);
-
-  return (await contract.initiatePropertyTransfer(propertyId, { value: priceWei })).wait();
-}
-
-export async function acceptOffer(propertyId: number) {
-  const signer = await getSigner();
-  const contract = getContract(signer);
-
-  return (await contract.acceptPropertyTransfer(propertyId)).wait();
-}
-
-export async function rejectOffer(propertyId: number) {
-  const signer = await getSigner();
-  const contract = getContract(signer);
-
-  return (await contract.denyPropertyTransfer(propertyId)).wait();
-}
-
-/* ⭐ FIXED: Struct parsing for transfers */
-export async function getPropertyTransfer(propertyId: number) {
-  const contract = getContract();
-  const t: any = await contract.getPropertyTransfer(propertyId);
-
-  return {
-    buyer: String(t.buyer ?? t[0]),
-    price: BigInt(t.price ?? t[1]),
-    active: Boolean(t.active ?? t[2])
-  };
-}
-
-export async function isPropertyUnderTransfer(propertyId: number) {
-  const t = await getPropertyTransfer(propertyId);
-  return t.active && t.price > 0;
-}
-
-/* Pending transfers per user */
-export async function getPendingOfferForUser(wallet: string) {
-  const contract = getContract();
-  const ids: bigint[] = await contract.getPropertiesUnderTransfer(wallet);
-
-  return ids.map(id => Number(id));
-}
-
-/* --------------------------------------------------
    MULTI-PARTY CONTRACTS
 ----------------------------------------------------- */
 export async function createMPContract(ipfsCID: string, partyAddresses: string[]) {
@@ -220,7 +127,9 @@ export async function cancelMPContract(contractId: number) {
   return (await contract.cancelContract(contractId)).wait();
 }
 
-/* Status + signing info */
+/* --------------------------------------------------
+   CONTRACT INFO
+----------------------------------------------------- */
 export async function getContractStatus(contractId: number) {
   const contract = getContract();
   const info = await contract.retrieveContractInfo(contractId);
@@ -256,9 +165,6 @@ export async function hasUserDenied(contractId: number, addr: string) {
   return contract.hasUserDenied(contractId, addr);
 }
 
-/* --------------------------------------------------
-   FULL CONTRACT INFO
------------------------------------------------------ */
 export async function getContractInfo(contractId: number) {
   const contract = getContract();
   const info = await contract.retrieveContractInfo(contractId);
@@ -297,6 +203,353 @@ export async function getMyPendingContracts() {
 
   return contracts.filter(c => c.status === 0);
 }
+
+/* --------------------------------------------------
+   PROPERTIES — CORE
+----------------------------------------------------- */
+
+export async function registerProperty(ipfsCID: string) {
+  const signer = await getSigner();
+  const contract = getContract(signer);
+
+  const hash = ipfsCidToBytes32Hash(ipfsCID);
+  const tx = await contract.registerProperty(hash);
+
+  return tx.wait();
+}
+
+export async function getUserProperties(ownerAddress: string) {
+  const contract = getContract();
+  const props: any[] = await contract.retrieveUserProperties(ownerAddress);
+
+  return props.map((p: any) => ({
+    id: Number(p.id ?? p[0]),
+    cid: p.cid ?? p[1],
+    owner: String(p.owner ?? p[2]),
+    registeredAt: Number(p.registeredAt ?? p[3]),
+    dateOfLastTransfer: Number(p.dateOfLastTransfer ?? p[4]),
+    dateOfOwnershipChange: Number(p.dateOfOwnershipChange ?? p[5]),
+    exists: Boolean(p.exists ?? p[6])
+  }));
+}
+
+/** FULL PROPERTY INFO w/ HISTORY */
+export async function getPropertyInfo(propertyId: number) {
+  if (isNaN(propertyId)) throw new Error("Invalid propertyId");
+
+  const contract = getContract();
+
+  const [
+    id,
+    cid,
+    owner,
+    registeredAt,
+    dateOfLastTransfer,
+    dateOfOwnershipChange
+  ] = await contract.retrievePropertyInfo(propertyId);
+
+  return {
+    id: Number(id),
+    cid: String(cid),
+    owner: String(owner),
+    registeredAt: Number(registeredAt),
+    dateOfLastTransfer: Number(dateOfLastTransfer),
+    dateOfOwnershipChange: Number(dateOfOwnershipChange)
+  };
+}
+
+
+export async function getPreviousOwner(propertyId: number) {
+  if (isNaN(propertyId)) throw new Error("Invalid propertyId");
+
+  const contract = getContract();
+
+  const [previousOwner, transferDate] =
+    await contract.getPreviousOwner(propertyId);
+
+  return {
+    previousOwner: String(previousOwner),
+    transferDate: Number(transferDate)
+  };
+}
+
+export async function getOwnershipHistory(propertyId: number) {
+  if (isNaN(propertyId)) throw new Error("Invalid propertyId");
+
+  const contract = getContract();
+
+  const history = await contract.getOwnershipHistory(propertyId);
+
+  return history.map((h: any) => ({
+    previousOwner: String(h.previousOwner ?? h[0]),
+    newOwner: String(h.newOwner ?? h[1]),
+    transferDate: Number(h.transferDate ?? h[2])
+  }));
+}
+
+
+/* --------------------------------------------------
+   PROPERTIES — TRANSFERS (OWNERSHIP TRANSFER)
+----------------------------------------------------- */
+
+export async function directTransferOwnership(propertyId: number, newOwner: string) {
+  try {
+    const signer = await getSigner();
+    const contract = getContract(signer);
+
+    // Execute the transaction
+   const tx = await contract["transferOwnership(uint256,address)"](propertyId, newOwner);
+    console.log("Transfer TX sent:", tx.hash);
+
+    // Wait for confirmation
+    const receipt = await tx.wait();
+    console.log("Transfer confirmed:", receipt.transactionHash);
+
+    return {
+      success: true,
+      txHash: receipt.transactionHash,
+    };
+
+  } catch (error: any) {
+    console.error("Transfer failed:", error);
+    return {
+      success: false,
+      error: error?.reason || error?.message || "Unknown error",
+    };
+  }
+}
+/* --------------------------------------------------
+   PROPERTIES — TRANSFERS (ESCROW)
+----------------------------------------------------- */
+
+
+export type TxResult = { success: true; txHash?: string; receipt?: any } | { success: false; error: any };
+export enum SaleStatus {
+  NONE = 0,            // No sale exists
+  INITIATED = 1,       // Seller proposed sale, buyer not accepted yet
+  ACCEPTED = 2,        // Buyer accepted, waiting for payment
+  PAID = 3,            // Buyer paid, funds locked in escrow
+  COMPLETED = 4,       // Seller finalized transfer
+  DENIED_BY_BUYER = 5, // Buyer declined
+  CANCELLED = 6        // Seller cancelled before payment
+}
+
+export interface SaleData {
+  propertyId: number;
+  seller: string;
+  buyer: string;
+  price: bigint;
+  status: SaleStatus;
+  initiatedAt: number;
+}
+
+/** Utility: convert any numeric input to bigint for contract calls */
+function toBigInt(value: number | string | bigint): bigint {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number") return BigInt(value);
+  // string
+  if (/^\d+$/.test(value)) return BigInt(value);
+  // allow decimal ETH strings? Not converting — expect wei string or integer
+  throw new Error("price must be integer (wei) as number|string|bigint");
+}
+
+// -----------------------------
+// Seller: Propose sale (seller chooses buyer)
+// Solidity signature assumed: proposePropertySale(uint256 propertyId, uint256 price, address buyer)
+// Note: Some contract variants had different arg order — ensure it matches your deployed ABI.
+// -----------------------------
+export async function proposePropertySale(
+  propertyId: number,
+  priceWei: number | string | bigint,
+  buyerAddress: string
+): Promise<TxResult> {
+  try {
+    const signer = await getSigner();
+    const contract = getContract(signer);
+
+    const price = toBigInt(priceWei);
+
+    // Call contract: ensure argument order matches ABI (propertyId, price, buyer)
+    const tx = await contract.proposePropertySale(propertyId, price, buyerAddress);
+    const receipt = await tx.wait();
+    return { success: true, txHash: tx.hash, receipt };
+  } catch (error) {
+    console.error("proposePropertySale failed:", error);
+    return { success: false, error };
+  }
+}
+
+// -----------------------------
+// Buyer: fetch incoming sale propertyIds (buyer => propertyIds[])
+// -----------------------------
+export async function getIncomingSaleRequests(buyerAddress: string): Promise<number[]> {
+  try {
+    const contract = getContract();
+    const ids: any[] = await contract.getIncomingSaleRequests(buyerAddress);
+    // ids will be BigInts or strings depending on provider; map to numbers for UI
+    return ids.map((i: any) => Number(i));
+  } catch (error) {
+    console.error("getIncomingSaleRequests failed:", error);
+    return [];
+  }
+}
+
+
+export async function getOutgoingSaleRequests(seller: string): Promise<number[]> {
+  try {
+    const contract = getContract(); // read-only
+
+    const result: bigint[] = await contract.getOutgoingSaleRequests(seller);
+
+    // Convert bigint → number
+    return result.map(id => Number(id));
+  } catch (error) {
+    console.error("getOutgoingSaleRequests failed:", error);
+    return [];
+  }
+}
+// -----------------------------
+// Get sale details (wrapper for contract getter)
+// Uses contract.getPropertySaleDetails(propertyId) or contract.sales(propertyId) depending on ABI.
+// We call getPropertySaleDetails if available; if not, fallback to sales mapping.
+// -----------------------------
+export async function getSaleDetails(propertyId: number): Promise<SaleData | null> {
+  try {
+    const contract = getContract();
+
+    let s: any;
+    // Prefer explicit getter if available
+    if (typeof contract.getPropertySaleDetails === "function") {
+      s = await contract.getPropertySaleDetails(propertyId);
+    } else {
+      // fallback to public mapping accessor (if ABI exposes it)
+      s = await contract.sales(propertyId);
+    }
+
+    // Some getters return struct with numeric fields as BigInt; normalize:
+    if (!s) return null;
+
+    return {
+      propertyId: Number(s.propertyId ?? propertyId),
+      seller: String(s.seller),
+      buyer: String(s.buyer),
+      price: BigInt(s.price ?? 0),
+      status: Number(s.status ?? 0),
+      initiatedAt: Number(s.initiatedAt ?? 0)
+    };
+  } catch (error) {
+    console.error("getSaleDetails failed:", error);
+    return null;
+  }
+}
+
+
+
+
+// -----------------------------
+// Buyer: Accept sale (marks intent). Solidity: buyerAcceptSale(propertyId)
+// -----------------------------
+export async function buyerAcceptSale(propertyId: number): Promise<TxResult> {
+  try {
+    const signer = await getSigner();
+    const contract = getContract(signer);
+
+    const tx = await contract.buyerAcceptSale(propertyId);
+    const receipt = await tx.wait();
+    return { success: true, txHash: tx.hash, receipt };
+  } catch (error) {
+    console.error("buyerAcceptSale failed:", error);
+    return { success: false, error };
+  }
+}
+
+// -----------------------------
+// Buyer: Decline sale. Solidity: buyerDeclineSale(propertyId)
+// -----------------------------
+export async function buyerDeclineSale(propertyId: number): Promise<TxResult> {
+  try {
+    const signer = await getSigner();
+    const contract = getContract(signer);
+
+    const tx = await contract.buyerDeclineSale(propertyId);
+    const receipt = await tx.wait();
+    return { success: true, txHash: tx.hash, receipt };
+  } catch (error) {
+    console.error("buyerDeclineSale failed:", error);
+    return { success: false, error };
+  }
+}
+
+// -----------------------------
+// Buyer: Pay (escrow) — send exact wei amount. Solidity: buyerPay(propertyId) payable
+// -----------------------------
+export async function buyerPay(propertyId: number): Promise<TxResult> {
+  try {
+    const signer = await getSigner();
+    const contract = getContract(signer);
+
+    // Correct getter
+    const sale = await contract.getPropertySaleDetails(propertyId);
+
+    // Extract exact price (Wei)
+    const price = sale.price;
+
+    // Buyer pays EXACT Wei price
+    const tx = await contract.buyerPay(propertyId, { value: price });
+    const receipt = await tx.wait();
+
+    return { success: true, txHash: tx.hash, receipt };
+  } catch (error) {
+    console.error("buyerPay failed:", error);
+    return { success: false, error };
+  }
+}
+
+
+
+// -----------------------------
+// Seller: Cancel sale (before payment). Solidity: sellerCancelSale(propertyId)
+// -----------------------------
+export async function sellerCancelSale(propertyId: number): Promise<TxResult> {
+  try {
+    const signer = await getSigner();
+    const contract = getContract(signer);
+
+    const tx = await contract.sellerCancelSale(propertyId);
+    const receipt = await tx.wait();
+    return { success: true, txHash: tx.hash, receipt };
+  } catch (error) {
+    console.error("sellerCancelSale failed:", error);
+    return { success: false, error };
+  }
+}
+
+// -----------------------------
+// Seller: Finalize sale — transfer ownership + release escrow. Solidity: finalizeSale(propertyId)
+// -----------------------------
+export async function finalizeSale(propertyId: number): Promise<TxResult> {
+  try {
+    const signer = await getSigner();
+    const contract = getContract(signer);
+
+    const tx = await contract.finalizeSale(propertyId);
+    const receipt = await tx.wait();
+    return { success: true, txHash: tx.hash, receipt };
+  } catch (error) {
+    console.error("finalizeSale failed:", error);
+    return { success: false, error };
+  }
+}
+
+
+
+
+
+
+
+
+
+
 
 /* --------------------------------------------------
    ADMIN
