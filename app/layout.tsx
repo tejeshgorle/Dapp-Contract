@@ -33,7 +33,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     { href: "/", label: "Dashboard" },
     { href: "/contracts", label: "Contracts" },
     { href: "/properties", label: "Properties" },
-    { href: "/transfers", label: "Transfers" },
      { href: "/people", label: "People" },
   ];
 

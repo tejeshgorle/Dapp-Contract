@@ -71,7 +71,7 @@ export default function DashboardPage() {
           </p>
         </Link>
 
-        {/* 5. TRANSACTIONS */}
+        {/* 5. TRANSACTIONS
         <Link href="/transactions" className={cardStyles}>
           <Receipt className={iconStyles} />
           <h2 className="text-xl font-semibold mt-4 mb-2 text-white group-hover:text-[#F5C542] transition">
@@ -80,7 +80,7 @@ export default function DashboardPage() {
           <p className="text-gray-400 text-sm">
             View all property-related transfers and on-chain transaction records.
           </p>
-        </Link>
+        </Link> */}
 
       </div>
     </main>

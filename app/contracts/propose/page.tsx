@@ -13,6 +13,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 
+import {
+  FilePlus,
+  UserPlus,
+  Users,
+  FileText,
+  Info,
+  Trash2,
+} from "lucide-react";
+
 import IPFSUpload from "./components/IPFSUpload";
 
 export default function ProposeContractPage() {
@@ -36,7 +45,7 @@ export default function ProposeContractPage() {
         const userData = await getUserByAddress(wallet);
         if (userData) {
           setCurrentUserInfo(userData);
-          setSigners([userData]);
+          setSigners([userData]); // user is default signer
         }
 
         const c = await getContactsForUserByWallet(wallet);
@@ -88,79 +97,121 @@ export default function ProposeContractPage() {
   return (
     <main className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-6 text-white bg-[#0B0F19] min-h-screen">
 
-      {/* LEFT SIDE — CREATE CONTRACT */}
-      <Card className="bg-[#131A2E] border border-[#2A3558] shadow-xl">
-        <CardContent className="p-6">
+      {/* LEFT SIDE COLUMN */}
+      <div className="flex flex-col gap-6">
 
-          <h2 className="text-2xl font-bold mb-4 text-[#F5C542]">
-            Create Multi-Party Contract
-          </h2>
+        {/* CREATE CONTRACT SECTION */}
+        <Card className="bg-[#131A2E] border border-[#2A3558] shadow-xl rounded-2xl">
+          <CardContent className="p-6 space-y-6">
 
-          {/* CID field */}
-          <div className="mb-4">
-            <label className="text-sm text-gray-300">Contract CID</label>
-            <Input
-              value={cid}
-              readOnly
-              className="bg-[#0F1527] text-white mt-1 border border-[#2A3558]"
-            />
-          </div>
-
-          {/* Signers */}
-          <div className="mb-4">
-            <label className="text-sm text-gray-300">Signers</label>
-
-            <div className="space-y-3 mt-3">
-              {signers.map((s) => (
-                <div
-                  key={s.wallet}
-                  className="p-3 bg-[#0F1527] rounded-lg flex justify-between items-center border border-[#2A3558]"
-                >
-                  <div>
-                    <p className="font-semibold text-[#F5C542] text-lg">
-                      {s.username}
-                    </p>
-                    <p className="text-xs text-gray-300">{s.wallet}</p>
-                  </div>
-
-                  {s.wallet !== currentUser && (
-                    <Button
-                      variant="destructive"
-                      className="bg-red-600 hover:bg-red-700"
-                      onClick={() => removeSigner(s.wallet)}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-              ))}
+            {/* Header */}
+            <div className="flex items-center gap-3">
+              <FilePlus className="w-7 h-7 text-[#F5C542]" />
+              <h2 className="text-2xl font-bold text-[#F5C542]">
+                Create Multi-Party Contract
+              </h2>
             </div>
-          </div>
 
-          {/* Create Contract Button */}
-          <Button
-            className="w-full mt-4 bg-[#F5C542] text-black font-semibold hover:bg-[#e0b637]"
-            onClick={createContract}
-            disabled={creating}
-          >
-            {creating ? "Creating..." : "Create Contract"}
-          </Button>
-        </CardContent>
-      </Card>
+            {/* CID field */}
+            <div>
+              <label className="text-sm text-gray-300 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[#F5C542]" />
+                Contract CID
+              </label>
 
-      {/* RIGHT SIDE */}
+              <Input
+                value={cid}
+                readOnly
+                className="bg-[#0F1527] text-white mt-2 border border-[#2A3558]"
+              />
+            </div>
+
+            {/* Signers */}
+            <div>
+              <label className="text-sm text-gray-300 flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#F5C542]" />
+                Signers
+              </label>
+
+              <div className="space-y-3 mt-3">
+                {signers.map((s) => (
+                  <div
+                    key={s.wallet}
+                    className="p-3 bg-[#0F1527] rounded-xl border border-[#2A3558] flex justify-between items-center"
+                  >
+                    <div>
+                      <p className="font-semibold text-[#F5C542] text-lg">
+                        {s.username}
+                      </p>
+                      <p className="text-xs text-gray-300">{s.wallet}</p>
+                    </div>
+
+                    {s.wallet !== currentUser && (
+                      <Button
+                        variant="destructive"
+                        className="bg-red-600 hover:bg-red-700 flex items-center gap-1"
+                        onClick={() => removeSigner(s.wallet)}
+                      >
+                        <Trash2 className="w-4 h-4" /> Remove
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Create Contract Button */}
+            <Button
+              className="w-full bg-[#F5C542] text-gray-900 text-lg font-semibold hover:bg-[#e5c34d]"
+              onClick={createContract}
+              disabled={creating}
+            >
+              {creating ? "Creating..." : "Create Contract"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* LEFT BOTTOM — NOTE / INFO SECTION */}
+        <Card className="bg-[#131A2E] border border-[#2A3558] shadow-xl rounded-2xl">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <Info className="w-6 h-6 text-[#F5C542]" />
+              <h3 className="text-lg font-semibold text-[#F5C542]">
+                How to Create a Contract
+              </h3>
+            </div>
+
+            <ul className="text-gray-300 text-sm space-y-2 leading-relaxed">
+              <li>
+                • First, <b className="text-[#F5C542]">upload your contract file</b> to get a unique <b className="text-[#F5C542]">CID</b>.
+              </li>
+              <li>
+                • Tap on people in the <b className="text-[#F5C542]">Contacts list</b> to add them as signers.
+              </li>
+              <li>
+                • You can remove signers anytime before creation.
+              </li>
+              <li>
+                • Finally tap <b className="text-[#F5C542]">Create Contract</b> to publish it on-chain.
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* RIGHT SIDE COLUMN */}
       <div className="flex flex-col gap-6">
 
         {/* IPFS Upload */}
         <IPFSUpload onCID={(cid: string) => setCid(cid)} />
 
-        {/* Contacts */}
-        <Card className="bg-[#131A2E] border border-[#2A3558] shadow-xl h-[50%] overflow-y-auto">
+        {/* Contacts List */}
+        <Card className="bg-[#131A2E] border border-[#2A3558] shadow-xl rounded-2xl h-[50%] overflow-y-auto">
           <CardContent className="p-6">
-
-            <h2 className="text-xl font-bold mb-3 text-[#F5C542]">
-              My Contacts
-            </h2>
+            <div className="flex items-center gap-3 mb-4">
+              <UserPlus className="w-6 h-6 text-[#F5C542]" />
+              <h2 className="text-xl font-bold text-[#F5C542]">My Contacts</h2>
+            </div>
 
             {contacts.length === 0 ? (
               <p className="text-gray-400 text-sm">No contacts found.</p>
@@ -169,7 +220,7 @@ export default function ProposeContractPage() {
                 {contacts.map((c) => (
                   <motion.div
                     key={c.wallet}
-                    className="p-3 bg-[#0F1527] rounded-lg border border-[#2A3558] cursor-pointer hover:bg-[#1B2240] transition"
+                    className="p-3 bg-[#0F1527] rounded-xl border border-[#2A3558] cursor-pointer hover:bg-[#1B2240] transition"
                     whileHover={{ scale: 1.02 }}
                     onClick={() => addSigner(c)}
                   >
@@ -181,9 +232,9 @@ export default function ProposeContractPage() {
                 ))}
               </div>
             )}
-
           </CardContent>
         </Card>
+
       </div>
 
     </main>

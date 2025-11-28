@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 import {
   proposePropertySale,
@@ -21,6 +22,15 @@ import {
 
 import { getSigner } from "@/utils/web3";
 import { getContactsForWallet } from "@/utils/contract";
+
+import {
+  Home,
+  User,
+  BadgeDollarSign,
+  Tags,
+  AlarmClock,
+  ArrowRightLeft,
+} from "lucide-react";
 
 export enum SaleStatus {
   INITIATED = 0,
@@ -42,6 +52,8 @@ interface ExtendedSaleData {
 }
 
 export default function TransactionPage() {
+  const router = useRouter();
+
   const [wallet, setWallet] = useState<string>("");
 
   const [contacts, setContacts] = useState<any[]>([]);
@@ -54,7 +66,6 @@ export default function TransactionPage() {
   const [selectedBuyer, setSelectedBuyer] = useState<string>("");
   const [priceWei, setPriceWei] = useState<string>("");
 
-  // 🔒 ACTION LOCK — prevents double-clicks
   const [actionLock, setActionLock] = useState<string | null>(null);
 
   const safeUser = async (addr: string) => {
@@ -115,9 +126,8 @@ export default function TransactionPage() {
     }
   };
 
-  // 🔧 WRAPPER to auto-lock buttons
   const runLocked = async (lockId: string, fn: () => Promise<void>) => {
-    if (actionLock) return; // already processing
+    if (actionLock) return;
     setActionLock(lockId);
     try {
       await fn();
@@ -129,55 +139,76 @@ export default function TransactionPage() {
   };
 
   return (
-    <div className="p-6 space-y-10">
+    <div className="p-6 space-y-10 text-white bg-[#05070d] min-h-screen">
 
-      {/* ░░ PROPOSE SALE SECTION ░░ */}
-      <Card className="p-6 shadow-xl rounded-2xl">
-        <h2 className="text-2xl font-semibold mb-4">Propose a New Sale</h2>
+      {/* ------------------------------------------------------------- */}
+      {/* 🔥 PROPOSE NEW SALE */}
+      {/* ------------------------------------------------------------- */}
+      <Card className="p-6 rounded-2xl bg-[#0b0f19] border border-white/20 shadow-2xl">
+        <h2 className="text-3xl font-bold text-[#F5C542] mb-5 flex items-center gap-3">
+          <Tags className="w-7 h-7 text-[#F5C542]" />
+          Propose Property Sale
+        </h2>
 
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            <select
-              className="w-full p-3 rounded-xl border bg-gray-100"
-              value={selectedProperty}
-              onChange={(e) => setSelectedProperty(e.target.value)}
-            >
-              <option value="">Select Property</option>
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  Property #{p.id}
-                </option>
-              ))}
-            </select>
+        <CardContent className="space-y-6">
 
-            <input
-              placeholder="Price in Wei"
-              value={priceWei}
-              onChange={(e) => setPriceWei(e.target.value)}
-              className="w-full p-3 rounded-xl border bg-gray-100"
-            />
+          {/* ICON INPUTS — Property | Price | Buyer */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-            <select
-              className="w-full p-3 rounded-xl border bg-gray-100"
-              value={selectedBuyer}
-              onChange={(e) => setSelectedBuyer(e.target.value)}
-            >
-              <option value="">Select Buyer</option>
-              {contacts.map((c, idx) => (
-                <option key={idx} value={c.wallet}>
-                  {c.username} ({c.wallet})
-                </option>
-              ))}
-            </select>
+            {/* PROPERTY SELECT */}
+            <div className="relative">
+              <Home className="absolute left-3 top-1/2 -translate-y-1/2 text-[#F5C542] w-5 h-5" />
+              <select
+                className="w-full bg-[#0F1629] border border-white/20 text-gray-200 p-3 pl-10 rounded-xl focus:border-[#F5C542]"
+                value={selectedProperty}
+                onChange={(e) => setSelectedProperty(e.target.value)}
+              >
+                <option value="" className="text-gray-200">Select Property</option>
+                {properties.map((p) => (
+                  <option key={p.id} className="text-gray-200" value={p.id}>
+                    Property #{p.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* PRICE INPUT */}
+            <div className="relative">
+              <BadgeDollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-[#F5C542] w-5 h-5" />
+              <input
+                placeholder="Price (Wei)"
+                value={priceWei}
+                onChange={(e) => setPriceWei(e.target.value)}
+                className="w-full bg-[#0F1629] border border-white/20 text-gray-200 p-3 pl-10 rounded-xl focus:border-[#F5C542]"
+              />
+            </div>
+
+            {/* BUYER SELECT */}
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-[#F5C542] w-5 h-5" />
+              <select
+                className="w-full bg-[#0F1629] border border-white/20 text-gray-200 p-3 pl-10 rounded-xl focus:border-[#F5C542]"
+                value={selectedBuyer}
+                onChange={(e) => setSelectedBuyer(e.target.value)}
+              >
+                <option value="" className="text-gray-200">Select Buyer</option>
+                {contacts.map((c, idx) => (
+                  <option key={idx} className="text-gray-200" value={c.wallet}>
+                    {c.username} ({c.wallet})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
+          {/* BUTTON */}
           <Button
-            className="w-full mt-4 py-3 text-lg"
+            className="w-full mt-4 py-3 text-lg bg-[#F5C542] text-gray-900 hover:bg-[#e6b93d]"
             disabled={actionLock !== null}
             onClick={async () =>
               runLocked("propose", async () => {
                 if (!selectedProperty || !priceWei || !selectedBuyer)
-                  return alert("Fill all fields");
+                  return alert("Fill all fields!");
 
                 const res = await proposePropertySale(
                   Number(selectedProperty),
@@ -193,146 +224,157 @@ export default function TransactionPage() {
         </CardContent>
       </Card>
 
-      {/* ░░ ACTIVE SALES ░░ */}
-      <Card className="p-6 shadow-xl rounded-2xl">
-        <h2 className="text-2xl font-semibold mb-4">Active Sale Details</h2>
+      {/* ------------------------------------------------------------- */}
+      {/* 🔥 ACTIVE SALES */}
+      {/* ------------------------------------------------------------- */}
+      <Card className="p-6 rounded-2xl bg-[#0b0f19] border border-white/20 shadow-2xl">
+        <h2 className="text-3xl font-bold text-[#F5C542] mb-6 flex items-center gap-3">
+          <ArrowRightLeft className="w-7 h-7 text-[#F5C542]" />
+          Active Sales
+        </h2>
 
         {salePackets.length === 0 && (
-          <p className="text-gray-500">
-            No active (INITIATED / ACCEPTED / PAID) sales.
-          </p>
+          <p className="text-gray-400 text-center py-5">No active sales.</p>
         )}
 
-        <div className="space-y-6 mt-4">
+        <div className="space-y-6">
           {salePackets.map((sale) => {
             const pid = sale.propertyId;
 
             return (
               <motion.div
                 key={pid}
-                className="p-5 bg-gray-100 rounded-xl shadow-md border"
+                className="p-6 rounded-xl bg-[#0F1629] border border-white/10 shadow-lg"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
-                <h3 className="text-xl font-semibold mb-3">
+                <h3 className="text-xl font-bold flex items-center gap-2 text-white">
+                  <Home className="w-5 h-5 text-[#F5C542]" />
                   Property #{pid}
                 </h3>
 
-                {/* USER DETAILS */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="p-3 bg-white rounded-xl border">
-                    <p className="font-semibold text-blue-600">Seller</p>
-                    <p><b>Name:</b> {sale.sellerUser?.username ?? "Unknown"}</p>
-                    <p><b>PAN:</b> {sale.sellerUser?.pan ?? "Unknown"}</p>
-                    <p className="text-xs break-all">{sale.seller}</p>
+                {/* SELLER + BUYER */}
+                <div className="grid grid-cols-2 gap-4 mt-4">
+
+                  {/* SELLER CARD */}
+                  <div className="p-4 bg-[#0b1324] rounded-xl border border-white/10">
+                    <p className="font-semibold text-red-400 flex items-center gap-2">
+                      <User className="w-4 h-4" /> Seller
+                    </p>
+                    <p className="text-gray-200"><b>Name:</b> {sale.sellerUser?.username ?? "Unknown"}</p>
+                    <p className="text-gray-200"><b>PAN:</b> {sale.sellerUser?.pan ?? "Unknown"}</p>
+                    <p className="text-xs break-all text-gray-400">{sale.seller}</p>
                   </div>
 
-                  <div className="p-3 bg-white rounded-xl border">
-                    <p className="font-semibold text-green-600">Buyer</p>
-                    <p><b>Name:</b> {sale.buyerUser?.username ?? "Unknown"}</p>
-                    <p><b>PAN:</b> {sale.buyerUser?.pan ?? "Unknown"}</p>
-                    <p className="text-xs break-all">{sale.buyer}</p>
+                  {/* BUYER CARD */}
+                  <div className="p-4 bg-[#0b1324] rounded-xl border border-white/10">
+                    <p className="font-semibold text-green-400 flex items-center gap-2">
+                      <User className="w-4 h-4" /> Buyer
+                    </p>
+                    <p className="text-gray-200"><b>Name:</b> {sale.buyerUser?.username ?? "Unknown"}</p>
+                    <p className="text-gray-200"><b>PAN:</b> {sale.buyerUser?.pan ?? "Unknown"}</p>
+                    <p className="text-xs break-all text-gray-400">{sale.buyer}</p>
                   </div>
                 </div>
 
-                <p><b>Price:</b> {String(sale.price)} Wei</p>
+                {/* PRICE */}
+                <p className="mt-4 flex items-center gap-2 text-gray-300">
+                  <BadgeDollarSign className="w-5 h-5 text-[#F5C542]" />
+                  <b className="text-gray-200">Price:</b> {String(sale.price)} Wei
+                </p>
 
-                <div className="mt-3 p-2 bg-white rounded text-center font-bold border">
+                {/* STATUS */}
+                <div className="mt-3 p-3 bg-[#1b2033] rounded-xl text-center font-bold border border-white/10 text-gray-200 flex items-center justify-center gap-2">
+                  <AlarmClock className="w-5 h-5 text-[#F5C542]" />
                   {statusText(sale.status)}
                 </div>
 
-                {/* ACTIONS */}
-                <div className="mt-4 space-y-3">
+                {/* ACTION BUTTONS */}
+                <div className="mt-5 space-y-3">
 
-                  {/* BUYER — Accept/Decline */}
-                  {sale.buyer === wallet &&
-                    sale.status === SaleStatus.INITIATED && (
-                      <div className="flex gap-3">
-                        <Button
-                          className="w-full"
-                          disabled={actionLock !== null}
-                          onClick={() =>
-                            runLocked(`accept-${pid}`, async () => {
-                              await buyerAcceptSale(pid);
-                            })
-                          }
-                        >
-                          {actionLock === `accept-${pid}`
-                            ? "Processing..."
-                            : "Accept"}
-                        </Button>
+                  {/* VIEW PROPERTY */}
+                  <Button
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                    onClick={() => router.push(`/properties/${pid}`)}
+                  >
+                    View Property Details
+                  </Button>
 
-                        <Button
-                          variant="destructive"
-                          className="w-full"
-                          disabled={actionLock !== null}
-                          onClick={() =>
-                            runLocked(`decline-${pid}`, async () => {
-                              await buyerDeclineSale(pid);
-                            })
-                          }
-                        >
-                          {actionLock === `decline-${pid}`
-                            ? "Processing..."
-                            : "Decline"}
-                        </Button>
-                      </div>
-                    )}
-
-                  {/* BUYER — Pay */}
-                  {sale.buyer === wallet &&
-                    sale.status === SaleStatus.ACCEPTED && (
+                  {/* BUYER ACCEPT/DECLINE */}
+                  {sale.buyer === wallet && sale.status === SaleStatus.INITIATED && (
+                    <div className="flex gap-3">
                       <Button
-                        className="w-full"
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
                         disabled={actionLock !== null}
                         onClick={() =>
-                          runLocked(`pay-${pid}`, async () => {
-                            await buyerPay(pid);
+                          runLocked(`accept-${pid}`, async () => {
+                            await buyerAcceptSale(pid);
                           })
                         }
                       >
-                        {actionLock === `pay-${pid}`
-                          ? "Processing..."
-                          : `Pay ${String(sale.price)} Wei`}
+                        {actionLock === `accept-${pid}` ? "..." : "Accept"}
                       </Button>
-                    )}
 
-                  {/* SELLER — Cancel */}
-                  {sale.seller === wallet &&
-                    sale.status === SaleStatus.INITIATED && (
                       <Button
                         variant="destructive"
                         className="w-full"
                         disabled={actionLock !== null}
                         onClick={() =>
-                          runLocked(`cancel-${pid}`, async () => {
-                            await sellerCancelSale(pid);
+                          runLocked(`decline-${pid}`, async () => {
+                            await buyerDeclineSale(pid);
                           })
                         }
                       >
-                        {actionLock === `cancel-${pid}`
-                          ? "Processing..."
-                          : "Cancel Sale"}
+                        {actionLock === `decline-${pid}` ? "..." : "Decline"}
                       </Button>
-                    )}
+                    </div>
+                  )}
 
-                  {/* SELLER — Finalize */}
-                  {sale.seller === wallet &&
-                    sale.status === SaleStatus.PAID && (
-                      <Button
-                        className="w-full"
-                        disabled={actionLock !== null}
-                        onClick={() =>
-                          runLocked(`finalize-${pid}`, async () => {
-                            await finalizeSale(pid);
-                          })
-                        }
-                      >
-                        {actionLock === `finalize-${pid}`
-                          ? "Processing..."
-                          : "Finalize Sale"}
-                      </Button>
-                    )}
+                  {/* BUYER PAY */}
+                  {sale.buyer === wallet && sale.status === SaleStatus.ACCEPTED && (
+                    <Button
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                      disabled={actionLock !== null}
+                      onClick={() =>
+                        runLocked(`pay-${pid}`, async () => {
+                          await buyerPay(pid);
+                        })
+                      }
+                    >
+                      {actionLock === `pay-${pid}` ? "..." : `Pay ${String(sale.price)} Wei`}
+                    </Button>
+                  )}
+
+                  {/* SELLER CANCEL */}
+                  {sale.seller === wallet && sale.status === SaleStatus.INITIATED && (
+                    <Button
+                      variant="destructive"
+                      className="w-full"
+                      disabled={actionLock !== null}
+                      onClick={() =>
+                        runLocked(`cancel-${pid}`, async () => {
+                          await sellerCancelSale(pid);
+                        })
+                      }
+                    >
+                      {actionLock === `cancel-${pid}` ? "..." : "Cancel Sale"}
+                    </Button>
+                  )}
+
+                  {/* SELLER FINALIZE */}
+                  {sale.seller === wallet && sale.status === SaleStatus.PAID && (
+                    <Button
+                      className="w-full bg-green-600 hover:bg-green-700 text-white"
+                      disabled={actionLock !== null}
+                      onClick={() =>
+                        runLocked(`finalize-${pid}`, async () => {
+                          await finalizeSale(pid);
+                        })
+                      }
+                    >
+                      {actionLock === `finalize-${pid}` ? "..." : "Finalize Sale"}
+                    </Button>
+                  )}
                 </div>
               </motion.div>
             );

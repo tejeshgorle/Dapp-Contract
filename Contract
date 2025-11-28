@@ -8,9 +8,7 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
     constructor() Ownable(msg.sender) {}
 
-    // ------------------------
     // ERRORS
-    // ------------------------
     error UserAlreadyExists();
     error UserNotRegistered();
     error ContactAlreadyAdded();
@@ -24,11 +22,9 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
     error TransferAlreadyProcessed();
     error ContractAlreadyFinalized();
 
-    // ------------------------
     // STRUCTS & STORAGE
-    // ------------------------
 
-    // --------- UserLib ---------
+    // UserLib
     struct User {
         bytes32 username;
         bytes32 panHash;
@@ -44,14 +40,14 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
 
     UserState private userState;
 
-    // --------- ContactLib ---------
+    //ContactLib
     struct ContactState {
         mapping(address => address[]) contacts;
     }
 
     ContactState private contactState;
 
-    // --------- ContractSignLib ---------
+    // ContractSignLib
     enum ContractStatus {
         PENDING,
         COMPLETED,
@@ -60,7 +56,7 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
 
     struct MultiPartyContract {
         uint256 id;
-        bytes32 cid;
+        string cid; // UPDATED
         address creator;
         address[] signers;
         mapping(address => bool) signed;
@@ -74,19 +70,17 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
         mapping(uint256 => MultiPartyContract) contracts;
         mapping(address => uint256[]) createdByUser;
         mapping(address => uint256[]) signedByUser;
-        // All contracts where a user is listed as a signer
         mapping(address => uint256[]) contractsWhereParty;
     }
 
     ContractState private contractState;
 
-    // --------- Property & Escrow ---------
-    struct Property {
-        uint256 id;
-        bytes32 cid;
-        address owner;
-        uint256 registeredAt;
-        bool exists;
+    // Property & Escrow
+
+    struct PropertyOwnershipRecord {
+        address previousOwner;
+        address newOwner;
+        uint256 transferDate;
     }
 
     struct PropertyTransfer {
@@ -98,10 +92,32 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
         bool processed;
     }
 
-    struct PropertyOwnershipRecord {
-        address previousOwner;
-        address newOwner;
-        uint256 transferDate;
+    enum SaleStatus {
+        INITIATED,
+        ACCEPTED,
+        PAID,
+        DENIED_BY_BUYER,
+        CANCELLED,
+        COMPLETED
+    }
+
+    struct Sale {
+        uint256 propertyId;
+        address seller;
+        address buyer;
+        uint256 price;
+        SaleStatus status;
+        uint256 initiatedAt;
+    }
+
+    struct Property {
+        uint256 id;
+        string cid; // UPDATED
+        address owner;
+        uint256 registeredAt;
+        uint256 dateOfLastTransfer;
+        uint256 dateOfOwnershipChange;
+        bool exists;
     }
 
     struct PropertyState {
@@ -110,39 +126,56 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
         mapping(address => uint256[]) ownerProperties;
         mapping(uint256 => PropertyTransfer) transfers;
         mapping(uint256 => PropertyOwnershipRecord[]) ownershipHistory;
+        mapping(uint256 => Sale) sales;
     }
 
     PropertyState private propertyState;
 
-    // ------------------------
+    mapping(address => uint256[]) private incomingSales;
+    mapping(address => uint256[]) private outgoingSales;
+
     // EVENTS
-    // ------------------------
     event UserRegistered(address wallet, bytes32 username);
     event ContactAdded(address user, address contact);
-    event ContractCreated(uint256 id, address creator, bytes32 cid);
+
+    event ContractCreated(uint256 id, address creator, string cid); // UPDATED
     event ContractSigned(uint256 id, address signer);
     event ContractDenied(uint256 id, address signer);
     event ContractCanceled(uint256 id, address caller);
     event ContractCompleted(uint256 id);
 
-    event PropertyRegistered(uint256 propertyId, address owner, bytes32 cid);
-    event PropertyTransferRequested(
-        uint256 propertyId,
-        address buyer,
+    event PropertyRegistered(uint256 propertyId, address owner, string cid); // UPDATED
+
+    event PropertySaleProposed(
+        uint256 indexed propertyId,
+        address indexed seller,
+        uint256 price,
+        uint256 timestamp
+    );
+    event PropertySalePaid(
+        uint256 indexed propertyId,
+        address indexed buyer,
         uint256 price
     );
-    event PropertyTransferAccepted(uint256 propertyId, address buyer);
-    event PropertyTransferDenied(uint256 propertyId, address buyer);
-    event PropertyTransferCompleted(
-        uint256 propertyId,
-        address buyer,
-        address seller,
+    event PropertySaleDeclined(
+        uint256 indexed propertyId,
+        address indexed buyer
+    );
+    event PropertyTransferred(
+        uint256 indexed propertyId,
+        address indexed oldOwner,
+        address indexed newOwner,
+        uint256 timestamp,
         uint256 price
+    );
+    event DirectOwnershipTransfer(
+        uint256 indexed propertyId,
+        address indexed oldOwner,
+        address indexed newOwner,
+        uint256 timestamp
     );
 
-    // ------------------------
     // USER FUNCTIONS
-    // ------------------------
     function registerUser(
         bytes32 username,
         bytes32 panHash
@@ -179,9 +212,7 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
         return list;
     }
 
-    // ------------------------
     // CONTACT FUNCTIONS
-    // ------------------------
     function addToMyContacts(address contact) external whenNotPaused {
         address[] storage myContacts = contactState.contacts[msg.sender];
 
@@ -204,27 +235,23 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
         return list;
     }
 
-    // ------------------------
     // MULTI-PARTY CONTRACTS
-    // ------------------------
     function createContract(
-        bytes32 cid,
+        string calldata cid,
         address[] calldata signers
     ) external whenNotPaused {
         uint256 id = contractState.nextId++;
 
         MultiPartyContract storage c = contractState.contracts[id];
         c.id = id;
-        c.cid = cid;
+        c.cid = cid; // UPDATED
         c.creator = msg.sender;
         c.signers = signers;
         c.status = ContractStatus.PENDING;
         c.signedCount = 0;
 
-        // Track creator
         contractState.createdByUser[msg.sender].push(id);
 
-        // Track each signer
         for (uint256 i = 0; i < signers.length; i++) {
             contractState.contractsWhereParty[signers[i]].push(id);
         }
@@ -235,7 +262,6 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
     function signContract(uint256 contractId) external whenNotPaused {
         MultiPartyContract storage c = contractState.contracts[contractId];
         if (c.creator == address(0)) revert ContractNotFound();
-
         if (c.status != ContractStatus.PENDING)
             revert ContractAlreadyFinalized();
 
@@ -246,11 +272,11 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
                 break;
             }
         }
+
         if (!isSigner) revert NotAuthorized();
         if (c.signed[msg.sender]) revert AlreadySigned();
         if (c.denied[msg.sender]) revert AlreadyDenied();
 
-        // Mark signer
         c.signed[msg.sender] = true;
         c.signedCount++;
 
@@ -258,7 +284,6 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
 
         emit ContractSigned(contractId, msg.sender);
 
-        // Auto-complete when everyone signed
         if (c.signedCount == c.signers.length) {
             c.status = ContractStatus.COMPLETED;
             emit ContractCompleted(contractId);
@@ -268,7 +293,6 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
     function denyContract(uint256 contractId) external whenNotPaused {
         MultiPartyContract storage c = contractState.contracts[contractId];
         if (c.creator == address(0)) revert ContractNotFound();
-
         if (c.status != ContractStatus.PENDING)
             revert ContractAlreadyFinalized();
 
@@ -279,18 +303,17 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
                 break;
             }
         }
+
         if (!isSigner) revert NotAuthorized();
         if (c.signed[msg.sender]) revert AlreadySigned();
         if (c.denied[msg.sender]) revert AlreadyDenied();
 
-        // Mark denied
         c.denied[msg.sender] = true;
 
         contractState.signedByUser[msg.sender].push(contractId);
 
         emit ContractDenied(contractId, msg.sender);
 
-        // Auto-cancel if ANY signer denies
         c.status = ContractStatus.CANCELED;
         emit ContractCanceled(contractId, msg.sender);
     }
@@ -298,7 +321,6 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
     function cancelContract(uint256 contractId) external whenNotPaused {
         MultiPartyContract storage c = contractState.contracts[contractId];
         if (c.creator != msg.sender) revert NotAuthorized();
-
         if (c.status != ContractStatus.PENDING)
             revert ContractAlreadyFinalized();
 
@@ -313,7 +335,7 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
         view
         returns (
             uint256 id,
-            bytes32 cid,
+            string memory cid,
             address creator,
             address[] memory signers,
             ContractStatus status,
@@ -344,19 +366,14 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
         return c.denied[user];
     }
 
-    // Get contract ids where address is a party
     function getContractsWhereUserIsParty(
         address user
     ) external view returns (uint256[] memory) {
         return contractState.contractsWhereParty[user];
     }
 
-    // ------------------------
-    // PROPERTY FUNCTIONS (UPGRADED)
-    // ------------------------
-
-    // Register property -> records registeredAt + initial ownership history
-    function registerProperty(bytes32 cid) external whenNotPaused {
+    // PROPERTY SYSTEM
+    function registerProperty(string calldata cid) external whenNotPaused {
         uint256 id = propertyState.nextId++;
 
         propertyState.properties[id] = Property({
@@ -364,12 +381,13 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
             cid: cid,
             owner: msg.sender,
             registeredAt: block.timestamp,
+            dateOfLastTransfer: 0,
+            dateOfOwnershipChange: block.timestamp,
             exists: true
         });
 
         propertyState.ownerProperties[msg.sender].push(id);
 
-        // initial ownership record (previousOwner = address(0))
         propertyState.ownershipHistory[id].push(
             PropertyOwnershipRecord({
                 previousOwner: address(0),
@@ -381,85 +399,245 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
         emit PropertyRegistered(id, msg.sender, cid);
     }
 
-    // Retrieve properties owned by a user
     function retrieveUserProperties(
         address owner
     ) external view returns (Property[] memory) {
         uint256[] storage ids = propertyState.ownerProperties[owner];
         Property[] memory list = new Property[](ids.length);
 
-        for (uint256 i = 0; i < ids.length; i++) list[i] = propertyState.properties[ids[i]];
+        for (uint256 i = 0; i < ids.length; i++)
+            list[i] = propertyState.properties[ids[i]];
 
         return list;
     }
 
-    // Fetch property basic info (includes registeredAt)
     function retrievePropertyInfo(
-        uint256 id
-    ) external view returns (Property memory) {
-        if (!propertyState.properties[id].exists) revert PropertyNotFound();
-        return propertyState.properties[id];
+        uint256 propertyId
+    )
+        external
+        view
+        returns (
+            uint256 id,
+            string memory cid,
+            address owner,
+            uint256 registeredAt,
+            uint256 dateOfLastTransfer,
+            uint256 dateOfOwnershipChange
+        )
+    {
+        Property storage p = propertyState.properties[propertyId];
+        if (!p.exists) revert PropertyNotFound();
+
+        return (
+            p.id,
+            p.cid,
+            p.owner,
+            p.registeredAt,
+            p.dateOfLastTransfer,
+            p.dateOfOwnershipChange
+        );
     }
 
-    // Get full ownership history records
-    function getPropertyOwnershipHistory(
-        uint256 id
+    function getPreviousOwner(
+        uint256 propertyId
+    ) external view returns (address previousOwner, uint256 transferDate) {
+        if (!propertyState.properties[propertyId].exists)
+            revert PropertyNotFound();
+
+        PropertyOwnershipRecord[] storage history = propertyState
+            .ownershipHistory[propertyId];
+        uint256 len = history.length;
+
+        if (len == 0) return (address(0), 0);
+
+        PropertyOwnershipRecord storage r = history[len - 1];
+        return (r.previousOwner, r.transferDate);
+    }
+
+    function getOwnershipHistory(
+        uint256 propertyId
     ) external view returns (PropertyOwnershipRecord[] memory) {
-        return propertyState.ownershipHistory[id];
+        if (!propertyState.properties[propertyId].exists)
+            revert PropertyNotFound();
+
+        return propertyState.ownershipHistory[propertyId];
     }
 
-    // Buyer initiates a transfer by sending funds (escrow)
-    function initiatePropertyTransfer(
+    function getPropertySaleDetails(
         uint256 propertyId
-    ) external payable whenNotPaused nonReentrant {
+    ) external view returns (Sale memory) {
+        return propertyState.sales[propertyId];
+    }
+
+    function getAgreementStatus(
+        uint256 propertyId
+    ) external view returns (SaleStatus) {
+        return propertyState.sales[propertyId].status;
+    }
+
+    // DIRECT OWNERSHIP TRANSFER
+    function transferOwnership(
+        uint256 propertyId,
+        address newOwner
+    ) external whenNotPaused {
         Property storage p = propertyState.properties[propertyId];
         if (!p.exists) revert PropertyNotFound();
-        if (p.owner == msg.sender) revert NotAuthorized();
-        if (msg.value == 0) revert InsufficientFunds();
-
-        propertyState.transfers[propertyId] = PropertyTransfer({
-            propertyId: propertyId,
-            buyer: msg.sender,
-            price: msg.value,
-            initiatedAt: block.timestamp,
-            accepted: false,
-            processed: false
-        });
-
-        emit PropertyTransferRequested(propertyId, msg.sender, msg.value);
-    }
-
-    // Seller can view current transfer for a property
-    function getPropertyTransfer(
-        uint256 propertyId
-    ) external view returns (PropertyTransfer memory) {
-        return propertyState.transfers[propertyId];
-    }
-
-    // Seller accepts transfer -> ownership updated + history recorded + funds forwarded
-    function acceptPropertyTransfer(
-        uint256 propertyId
-    ) external whenNotPaused nonReentrant {
-        Property storage p = propertyState.properties[propertyId];
-        if (!p.exists) revert PropertyNotFound();
-
-        PropertyTransfer storage t = propertyState.transfers[propertyId];
-        if (t.processed) revert TransferAlreadyProcessed();
         if (p.owner != msg.sender) revert NotAuthorized();
-
-        t.accepted = true;
-        t.processed = true;
-
-        address buyer = t.buyer;
-        uint256 amount = t.price;
+        if (newOwner == address(0)) revert NotAuthorized();
 
         address previousOwner = p.owner;
 
-        // Transfer ownership
+        p.owner = newOwner;
+        p.dateOfLastTransfer = block.timestamp;
+        p.dateOfOwnershipChange = block.timestamp;
+
+        _removePropertyFromOwner(previousOwner, propertyId);
+        propertyState.ownerProperties[newOwner].push(propertyId);
+
+        propertyState.ownershipHistory[propertyId].push(
+            PropertyOwnershipRecord({
+                previousOwner: previousOwner,
+                newOwner: newOwner,
+                transferDate: block.timestamp
+            })
+        );
+
+        emit DirectOwnershipTransfer(
+            propertyId,
+            previousOwner,
+            newOwner,
+            block.timestamp
+        );
+    }
+
+    function _removePropertyFromOwner(
+        address owner,
+        uint256 propertyId
+    ) internal {
+        uint256[] storage list = propertyState.ownerProperties[owner];
+        uint256 len = list.length;
+
+        for (uint256 i = 0; i < len; i++) {
+            if (list[i] == propertyId) {
+                list[i] = list[len - 1];
+                list.pop();
+                return;
+            }
+        }
+    }
+
+    // SALE & ESCROW FLOW
+    function proposePropertySale(
+        uint256 propertyId,
+        uint256 price,
+        address buyer
+    ) external whenNotPaused returns (uint256) {
+        Property storage p = propertyState.properties[propertyId];
+        if (!p.exists) revert PropertyNotFound();
+        if (p.owner != msg.sender) revert NotAuthorized();
+        if (price == 0) revert InsufficientFunds();
+        if (buyer == address(0)) revert NotAuthorized();
+
+        propertyState.sales[propertyId] = Sale({
+            propertyId: propertyId,
+            seller: msg.sender,
+            buyer: buyer,
+            price: price,
+            status: SaleStatus.INITIATED,
+            initiatedAt: block.timestamp
+        });
+
+        outgoingSales[msg.sender].push(propertyId);
+        incomingSales[buyer].push(propertyId);
+
+        emit PropertySaleProposed(
+            propertyId,
+            msg.sender,
+            price,
+            block.timestamp
+        );
+        return propertyId;
+    }
+
+    function getIncomingSaleRequests(
+        address buyer
+    ) external view returns (uint256[] memory) {
+        return incomingSales[buyer];
+    }
+
+    function getOutgoingSaleRequests(
+        address seller
+    ) external view returns (uint256[] memory) {
+        return outgoingSales[seller];
+    }
+
+    function buyerAcceptSale(uint256 propertyId) external whenNotPaused {
+        Sale storage s = propertyState.sales[propertyId];
+
+        if (s.status != SaleStatus.INITIATED) revert TransferNotFound();
+        if (s.buyer != msg.sender) revert NotAuthorized();
+
+        s.status = SaleStatus.ACCEPTED;
+    }
+
+    function buyerDeclineSale(uint256 propertyId) external whenNotPaused {
+        Sale storage s = propertyState.sales[propertyId];
+
+        if (s.status != SaleStatus.INITIATED && s.status != SaleStatus.ACCEPTED)
+            revert TransferNotFound();
+        if (s.buyer != msg.sender) revert NotAuthorized();
+
+        s.status = SaleStatus.DENIED_BY_BUYER;
+        emit PropertySaleDeclined(propertyId, msg.sender);
+    }
+
+    function buyerPay(
+        uint256 propertyId
+    ) external payable whenNotPaused nonReentrant {
+        Sale storage s = propertyState.sales[propertyId];
+
+        if (s.status != SaleStatus.ACCEPTED) revert TransferNotFound();
+        if (s.buyer != msg.sender) revert NotAuthorized();
+        if (msg.value != s.price) revert InsufficientFunds();
+
+        s.status = SaleStatus.PAID;
+        emit PropertySalePaid(propertyId, msg.sender, msg.value);
+    }
+
+    function sellerCancelSale(uint256 propertyId) external whenNotPaused {
+        Sale storage s = propertyState.sales[propertyId];
+        if (s.seller != msg.sender) revert NotAuthorized();
+        if (s.status != SaleStatus.INITIATED && s.status != SaleStatus.PAID)
+            revert TransferNotFound();
+
+        s.status = SaleStatus.CANCELLED;
+
+        emit PropertySaleDeclined(propertyId, msg.sender);
+    }
+
+    function finalizeSale(
+        uint256 propertyId
+    ) external whenNotPaused nonReentrant {
+        Sale storage s = propertyState.sales[propertyId];
+        if (s.seller == address(0)) revert TransferNotFound();
+        if (s.seller != msg.sender) revert NotAuthorized();
+        if (s.status != SaleStatus.PAID) revert TransferNotFound();
+
+        Property storage p = propertyState.properties[propertyId];
+        if (!p.exists) revert PropertyNotFound();
+
+        address seller = s.seller;
+        address buyer = s.buyer;
+        uint256 amount = s.price;
+        address previousOwner = p.owner;
+
         p.owner = buyer;
+        p.dateOfLastTransfer = block.timestamp;
+        p.dateOfOwnershipChange = block.timestamp;
+
+        _removePropertyFromOwner(previousOwner, propertyId);
         propertyState.ownerProperties[buyer].push(propertyId);
 
-        // Record ownership change
         propertyState.ownershipHistory[propertyId].push(
             PropertyOwnershipRecord({
                 previousOwner: previousOwner,
@@ -468,37 +646,21 @@ contract MegaRegistry is ReentrancyGuard, Ownable, Pausable {
             })
         );
 
-        emit PropertyTransferAccepted(propertyId, buyer);
+        s.status = SaleStatus.COMPLETED;
 
-        // Forward funds to seller
-        (bool sent, ) = msg.sender.call{value: amount}("");
+        (bool sent, ) = seller.call{value: amount}("");
         require(sent, "Payment failed");
 
-        emit PropertyTransferCompleted(propertyId, buyer, previousOwner, amount);
+        emit PropertyTransferred(
+            propertyId,
+            previousOwner,
+            buyer,
+            block.timestamp,
+            amount
+        );
     }
 
-    // Seller denies transfer -> refund buyer
-    function denyPropertyTransfer(
-        uint256 propertyId
-    ) external whenNotPaused nonReentrant {
-        Property storage p = propertyState.properties[propertyId];
-        if (!p.exists) revert PropertyNotFound();
-
-        PropertyTransfer storage t = propertyState.transfers[propertyId];
-        if (t.processed) revert TransferAlreadyProcessed();
-        if (p.owner != msg.sender) revert NotAuthorized();
-
-        t.processed = true;
-
-        (bool sent, ) = t.buyer.call{value: t.price}("");
-        require(sent, "Refund failed");
-
-        emit PropertyTransferDenied(propertyId, t.buyer);
-    }
-
-    // ------------------------
     // ADMIN
-    // ------------------------
     function pause() external onlyOwner {
         _pause();
     }

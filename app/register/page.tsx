@@ -22,7 +22,7 @@ export default function RegisterPage() {
   useEffect(() => {
     async function init() {
       try {
-        const acc = await getAccount(); // ensures wallet connection
+        const acc = await getAccount();
         if (!acc) {
           setError("Wallet not connected");
           setChecking(false);
@@ -31,7 +31,6 @@ export default function RegisterPage() {
 
         setAccount(acc);
 
-        // use the getUserByAddress() wrapper
         const user = await getUserByAddress(acc);
 
         if (user && user.exists) {
@@ -63,10 +62,8 @@ export default function RegisterPage() {
       const acc = account ?? (await getAccount());
       if (!acc) throw new Error("Wallet not connected");
 
-      // call your wrapper: registerUser(username, pan)
       await registerUser(username.trim(), pan.trim());
-
-      router.replace("/dashboard"); // success — redirect
+      router.replace("/dashboard");
     } catch (err: any) {
       setError(err?.message ?? String(err));
     } finally {
@@ -75,13 +72,13 @@ export default function RegisterPage() {
   }
 
   // -----------------------------------------------------------
-  // LOADING STATE (checking wallet + registration)
+  // WHILE CHECKING WALLET
   // -----------------------------------------------------------
   if (checking) {
     return (
       <main className="container">
-        <div className="card">
-          <div className="small">Checking wallet & registration status…</div>
+        <div className="card enhanced-card">
+          <div className="loading-text">Checking wallet & registration…</div>
         </div>
       </main>
     );
@@ -91,52 +88,171 @@ export default function RegisterPage() {
   // PAGE UI
   // -----------------------------------------------------------
   return (
-    <main className="container">
-      <div className="card" style={{ maxWidth: 720, margin: "28px auto" }}>
-        <h2>Register</h2>
-        <p className="small">
-          Connect your wallet and create an on-chain user.  
-          <strong>PAN will be stored on-chain</strong> — consider privacy implications.
+    <main className="container enhanced-container">
+      <div className="card enhanced-card" style={{ maxWidth: 720 }}>
+        <h2 className="title">Register</h2>
+
+        <p className="subtitle">
+          Connect your wallet and create your on-chain profile.
+          <br />
+          <span className="highlight">
+            PAN will be stored permanently, please be aware.
+          </span>
         </p>
 
-        <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-          <div className="small">Connected: {account ?? "Not connected"}</div>
+        <div className="form-grid">
+          <div className="connection">
+            <span className="label">Wallet:</span> {account ?? "Not connected"}
+          </div>
 
           <input
-            className="input"
-            placeholder="username"
+            className="input enhanced-input"
+            placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
           />
 
           <input
-            className="input"
-            placeholder="PAN (full; on-chain)"
+            className="input enhanced-input"
+            placeholder="PAN (stored on-chain)"
             value={pan}
             onChange={(e) => setPan(e.target.value)}
           />
 
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="button" onClick={onRegister} disabled={loading}>
-              {loading ? "Registering…" : "Register"}
-            </button>
-
+          <div className="button-row">
             <button
-              className="button"
-              onClick={() => router.replace("/login")}
-              style={{
-                background: "transparent",
-                color: "white",
-                border: "1px solid rgba(255,255,255,0.06)",
-              }}
+              className="button enhanced-button"
+              onClick={onRegister}
+              disabled={loading}
             >
-              Back to Login
+              {loading ? "Registering…" : "Register"}
             </button>
           </div>
 
-          {error && <div style={{ color: "salmon" }}>{error}</div>}
+          {error && <div className="error-text">{error}</div>}
         </div>
       </div>
+
+      <style jsx>{`
+        .enhanced-container {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 40px 16px;
+        }
+
+        .enhanced-card {
+          background: rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(12px);
+          padding: 32px;
+          border-radius: 16px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 4px 18px rgba(0, 0, 0, 0.15);
+          animation: fadeIn 0.4s ease-out;
+        }
+
+        .title {
+          margin: 0 0 8px;
+          font-size: 1.8rem;
+          font-weight: 600;
+          letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+          margin: 0 0 18px;
+          opacity: 0.85;
+          line-height: 1.5;
+        }
+
+        .highlight {
+          color: #ffbfbf;
+          font-size: 0.9rem;
+        }
+
+        .form-grid {
+          display: grid;
+          gap: 14px;
+        }
+
+        .connection {
+          font-size: 0.9rem;
+          opacity: 0.85;
+          margin-bottom: 4px;
+        }
+
+        .label {
+          font-weight: 600;
+        }
+
+        .enhanced-input {
+          padding: 12px 14px;
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.05);
+          transition: 0.2s ease;
+        }
+
+        .enhanced-input:focus {
+          outline: none;
+          border-color: rgba(255, 255, 255, 0.3);
+          background: rgba(255, 255, 255, 0.08);
+        }
+
+        .button-row {
+          display: flex;
+          gap: 10px;
+          margin-top: 6px;
+        }
+
+        .enhanced-button {
+          flex: 1;
+          padding: 12px;
+          background: #4b82f5;
+          border-radius: 10px;
+          transition: 0.2s ease;
+        }
+
+        .enhanced-button:hover {
+          background: #3b6bd8;
+        }
+
+        .enhanced-secondary {
+          flex: 1;
+          padding: 12px;
+          background: transparent;
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          transition: 0.2s ease;
+        }
+
+        .enhanced-secondary:hover {
+          border-color: rgba(255, 255, 255, 0.25);
+          background: rgba(255, 255, 255, 0.06);
+        }
+
+        .error-text {
+          margin-top: 4px;
+          color: #ff8a8a;
+          font-size: 0.9rem;
+        }
+
+        .loading-text {
+          font-size: 0.95rem;
+          opacity: 0.85;
+          text-align: center;
+        }
+
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </main>
   );
 }

@@ -3,7 +3,7 @@ import { CONTRACT_ADDRESS } from "./keyConstants";
 export const contractAddress = CONTRACT_ADDRESS;
 
 
-export const abi = [
+export const abi =[
 	{
 		"inputs": [],
 		"stateMutability": "nonpayable",
@@ -159,9 +159,9 @@ export const abi = [
 			},
 			{
 				"indexed": false,
-				"internalType": "bytes32",
+				"internalType": "string",
 				"name": "cid",
-				"type": "bytes32"
+				"type": "string"
 			}
 		],
 		"name": "ContractCreated",
@@ -285,9 +285,9 @@ export const abi = [
 			},
 			{
 				"indexed": false,
-				"internalType": "bytes32",
+				"internalType": "string",
 				"name": "cid",
-				"type": "bytes32"
+				"type": "string"
 			}
 		],
 		"name": "PropertyRegistered",
@@ -505,9 +505,9 @@ export const abi = [
 	{
 		"inputs": [
 			{
-				"internalType": "bytes32",
+				"internalType": "string",
 				"name": "cid",
-				"type": "bytes32"
+				"type": "string"
 			},
 			{
 				"internalType": "address[]",
@@ -982,9 +982,9 @@ export const abi = [
 	{
 		"inputs": [
 			{
-				"internalType": "bytes32",
+				"internalType": "string",
 				"name": "cid",
-				"type": "bytes32"
+				"type": "string"
 			}
 		],
 		"name": "registerProperty",
@@ -1033,9 +1033,9 @@ export const abi = [
 				"type": "uint256"
 			},
 			{
-				"internalType": "bytes32",
+				"internalType": "string",
 				"name": "cid",
-				"type": "bytes32"
+				"type": "string"
 			},
 			{
 				"internalType": "address",
@@ -1077,9 +1077,9 @@ export const abi = [
 				"type": "uint256"
 			},
 			{
-				"internalType": "bytes32",
+				"internalType": "string",
 				"name": "cid",
-				"type": "bytes32"
+				"type": "string"
 			},
 			{
 				"internalType": "address",
@@ -1123,9 +1123,9 @@ export const abi = [
 						"type": "uint256"
 					},
 					{
-						"internalType": "bytes32",
+						"internalType": "string",
 						"name": "cid",
-						"type": "bytes32"
+						"type": "string"
 					},
 					{
 						"internalType": "address",

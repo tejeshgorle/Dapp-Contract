@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Info, Calendar, Database, KeyRound } from "lucide-react";
 
 import { getSigner } from "@/utils/web3";
 import {
@@ -20,7 +20,6 @@ export default function ManagePropertiesPage() {
   const [ownerContacts, setOwnerContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Transfer Panel State
   const [transferState, setTransferState] = useState({
     propertyId: null as number | null,
     open: false,
@@ -35,7 +34,6 @@ export default function ManagePropertiesPage() {
         const signer = await getSigner();
         const addr = await signer.getAddress();
 
-        // Fetch properties for owner
         const raw = await getUserProperties(addr);
 
         const parsed = raw.map((p: any) => ({
@@ -50,15 +48,12 @@ export default function ManagePropertiesPage() {
 
         setProperties(parsed);
 
-        // Fetch user profile
         const profile = await getUserByAddress(addr);
         setOwnerDetails(profile);
 
-        // Fetch contacts
         const contacts = await getContactsForWallet(addr);
         setOwnerContacts(contacts);
       } catch (err) {
-        console.error("Failed:", err);
         setProperties([]);
         setOwnerDetails(null);
         setOwnerContacts([]);
@@ -68,183 +63,226 @@ export default function ManagePropertiesPage() {
     })();
   }, []);
 
+  function formatDate(timestamp: number) {
+    if (!timestamp || timestamp === 0) return "—";
+    return new Date(timestamp * 1000).toLocaleString("en-IN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  }
+
   return (
-    <main className="bg-[#0b0f19] min-h-screen p-8 text-white">
+    <main className="bg-[#05070d] min-h-screen p-8 text-white">
       <div className="max-w-6xl mx-auto space-y-6">
+
         {/* HEADER */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <button
             onClick={() => window.history.back()}
-            className="flex items-center gap-2 text-sm text-gray-300"
+            className="flex items-center gap-2 text-sm text-gray-300 hover:text-white transition"
           >
             <ChevronLeft size={18} /> Back
           </button>
 
-          <h1 className="text-3xl font-extrabold text-[#F5C542]">
+          <h1 className="text-3xl font-extrabold text-[#F5C542] tracking-wide">
             My Properties
           </h1>
 
-          <Button onClick={() => window.location.reload()}>Refresh</Button>
+          <Button
+            className="font-semibold"
+            onClick={() => window.location.reload()}
+          >
+            Refresh
+          </Button>
         </div>
 
         {/* USER PROFILE */}
         {ownerDetails && (
-          <Card className="border border-[#1b2240] p-1 rounded-xl">
-            <CardContent className="p-4 bg-[#071022] rounded-lg">
-              <div className="text-lg font-semibold mb-2">Your Profile</div>
+          <Card className="border border-white/20 bg-[#0d1323]/80 backdrop-blur-xl rounded-xl shadow-xl">
+            <CardContent className="p-6 space-y-3">
+              <div className="text-xl font-semibold text-[#F5C542]">
+                Your Profile
+              </div>
 
-              <div className="text-sm text-gray-300 space-y-1">
-                <div>
-                  Username:{" "}
+              <div className="text-sm space-y-1">
+                <p>
+                  <span className="text-gray-400">Username:</span>{" "}
                   <span className="text-[#9ad1ff]">
                     {ownerDetails.username}
                   </span>
-                </div>
+                </p>
 
-                <div>
-                  PAN Hash:{" "}
+                <p>
+                  <span className="text-gray-400">User PAN:</span>{" "}
                   <span className="text-[#9ad1ff]">{ownerDetails.pan}</span>
-                </div>
+                </p>
 
-                <div>
-                  Wallet:{" "}
+                <p>
+                  <span className="text-gray-400">Wallet:</span>{" "}
                   <span className="text-[#9ad1ff]">
                     {ownerDetails.wallet}
                   </span>
-                </div>
+                </p>
               </div>
+
+              
             </CardContent>
           </Card>
         )}
-
-        {/* CONTACTS */}
-        <Card className="border border-[#1b2240] p-1 rounded-xl">
-          <CardContent className="p-4 bg-[#071022] rounded-lg">
-            <div className="text-lg font-semibold mb-2">Your Contacts</div>
-
-            {ownerContacts.length === 0 ? (
-              <div className="text-gray-500 text-sm">
-                You have no saved contacts.
+        {/* NOTE BOX */}
+              <div className="mt-4 p-4 rounded-lg bg-[#101b33]/70 border border-white/20 flex items-start gap-3">
+                <Info className="w-5 h-5 text-[#F5C542] flex-shrink-0" />
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  Tap <span className="text-[#F5C542] font-semibold">
+                    View
+                  </span>{" "}
+                  to open full property details.  
+                  Use{" "}
+                  <span className="text-[#F5C542] font-semibold">
+                    Transfer Ownership
+                  </span>{" "}
+                  to transfer ownership only to people saved in your contacts.
+                </p>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {ownerContacts.map((c, idx) => (
-                  <div
-                    key={idx}
-                    className="p-2 rounded border border-[#12203a] text-sm"
-                  >
-                    <div>
-                      Username:{" "}
-                      <span className="text-[#7fb7ff]">{c.username}</span>
-                    </div>
-                    <div>PAN Hash: {c.pan}</div>
-                    <div className="text-xs text-gray-500">
-                      Wallet: {c.wallet}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* PROPERTIES LIST */}
-        <Card className="border border-[#1b2240] p-1 rounded-xl">
-          <CardContent className="p-4 bg-[#071022] rounded-lg">
+        {/* PROPERTIES */}
+        <Card className="border border-white/20 bg-[#0d1323]/80 backdrop-blur-xl rounded-xl shadow-xl">
+          <CardContent className="p-5">
             {loading ? (
               <div className="text-gray-400">Loading properties…</div>
             ) : properties.length === 0 ? (
-              <div className="text-gray-400 py-6">You have no properties.</div>
+              <div className="py-6 text-center text-gray-400">
+                You have no properties.
+              </div>
             ) : (
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-5">
                 {properties.map((p) => (
                   <div
                     key={p.id}
-                    className="relative p-4 rounded-lg bg-[#061021] border border-[#12203a] grid grid-cols-2 gap-4"
+                    className="
+                      p-5 rounded-xl 
+                      bg-[#0a0f1c]/90 
+                      border border-white/20 
+                      shadow-lg 
+                      hover:shadow-[#F5C542]/30 
+                      hover:border-[#F5C542]/40 
+                      transition
+                    "
                   >
-                    {/* LEFT SIDE — PROPERTY DETAILS */}
-                    <div>
-                      <div className="text-xs text-gray-400">Property</div>
-                      <div className="text-lg font-semibold">#{p.id}</div>
+                    {/* TOP SECTION */}
+                    <div className="flex justify-between">
+                      <div>
+                        <p className="text-sm text-gray-400">
+                          Property Number:
+                        </p>
+                        <p className="text-xl font-bold text-white">
+                          #{p.id}
+                        </p>
 
-                      <div className="text-xs text-[#7fb7ff] break-all mt-1">
-                        {p.cid}
+                        <p className="text-xs text-[#7fb7ff] break-all mt-2">
+                          CID: {p.cid}
+                        </p>
                       </div>
 
-                      <div className="mt-3 text-sm text-gray-300 space-y-1">
-                        <div>
-                          Owner Wallet:{" "}
-                          <span className="text-[#9ad1ff]">{p.owner}</span>
-                        </div>
-
-                        <hr className="border-[#1b2a40] my-2" />
-
-                        <div>
-                          Registered At:{" "}
-                          {new Date(
-                            p.registeredAt * 1000
-                          ).toLocaleString()}
-                        </div>
-
-                        <div>
-                          Last Transfer:{" "}
-                          {p.dateOfLastTransfer === 0
-                            ? "Never transferred"
-                            : new Date(
-                              p.dateOfLastTransfer * 1000
-                            ).toLocaleString()}
-                        </div>
-
-                        <div>
-                          Ownership Updated:{" "}
-                          {new Date(
-                            p.dateOfOwnershipChange * 1000
-                          ).toLocaleString()}
-                        </div>
-
-                        <div>Exists: {p.exists ? "Yes" : "No"}</div>
-                      </div>
-
-                      {/* ACTION BUTTONS */}
-                      <div className="mt-4 flex gap-3">
+                      <div className="flex gap-3">
                         <Button
                           variant="secondary"
-                          onClick={() => {
-                            window.location.href = `/properties/${p.id}`;
-                          }}
-                        >
-                          View
-                        </Button>
-
-
-                        <Button
                           onClick={() =>
-                            setTransferState({
-                              propertyId: p.id,
-                              open: true,
-                              selectedWallet: "",
-                            })
+                            (window.location.href = `/properties/${p.id}`)
                           }
                         >
-                          Transfer
+                          View
                         </Button>
                       </div>
                     </div>
 
-                    {/* RIGHT SIDE — TRANSFER PANEL */}
+                    {/* DETAILS */}
+                    <div className="mt-5 space-y-2 text-sm">
+                      <div className="flex items-center gap-2 text-gray-300">
+                        <KeyRound className="w-4 h-4 text-[#F5C542]" />
+                        <span>
+                          <span className="text-gray-400">
+                            Owner Wallet:
+                          </span>{" "}
+                          <span className="text-[#9ad1ff]">
+                            {p.owner}
+                          </span>
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-gray-300">
+                        <Calendar className="w-4 h-4 text-[#F5C542]" />
+                        <span>
+                          <span className="text-gray-400">
+                            Registered At:
+                          </span>{" "}
+                          {formatDate(p.registeredAt)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-gray-300">
+                        <Calendar className="w-4 h-4 text-[#F5C542]" />
+                        <span>
+                          <span className="text-gray-400">
+                            Last Transfer:
+                          </span>{" "}
+                          {p.dateOfLastTransfer === 0
+                            ? "Never transferred"
+                            : formatDate(p.dateOfLastTransfer)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-gray-300">
+                        <Database className="w-4 h-4 text-[#F5C542]" />
+                        <span>
+                          <span className="text-gray-400">
+                            Ownership Updated:
+                          </span>{" "}
+                          {formatDate(p.dateOfOwnershipChange)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* ACTION BUTTON */}
+                    <div className="mt-5">
+                      <Button
+                        onClick={() =>
+                          setTransferState({
+                            propertyId: p.id,
+                            open: true,
+                            selectedWallet: "",
+                          })
+                        }
+                        className="bg-[#F5C542] text-black hover:bg-[#e5b632] w-full"
+                      >
+                        Transfer Ownership
+                      </Button>
+                    </div>
+
+                    {/* TRANSFER PANEL */}
                     {transferState.open &&
                       transferState.propertyId === p.id && (
-                        <div className="p-4 bg-[#0c1a33] border border-[#123] rounded-lg">
-                          <div className="text-lg font-bold mb-3 text-[#F5C542]">
+                        <div className="mt-5 p-5 rounded-xl bg-[#0C1A33] border border-white/20 shadow-xl">
+                          <div className="text-lg font-bold text-[#F5C542] mb-3">
                             Transfer Property #{p.id}
                           </div>
 
-                          {/* CONTACT SELECT */}
                           <label className="text-sm text-gray-300">
                             Select New Owner
                           </label>
+
                           <select
-                            className="w-full mt-2 p-2 rounded bg-[#0a1629] border border-[#1d3355] text-sm"
+                            className="
+                              w-full mt-2 p-2 rounded 
+                              bg-[#0b1527] 
+                              border border-white/20 
+                              text-sm 
+                              text-white 
+                              focus:border-[#F5C542] 
+                              focus:ring-2 
+                              focus:ring-[#F5C542]/40 
+                              transition
+                            "
                             value={transferState.selectedWallet}
                             onChange={(e) =>
                               setTransferState((prev) => ({
@@ -253,17 +291,23 @@ export default function ManagePropertiesPage() {
                               }))
                             }
                           >
-                            <option value="">-- Choose Contact --</option>
+                            <option className="text-black bg-white" value="">
+                              -- Choose Contact --
+                            </option>
+
                             {ownerContacts.map((c, idx) => (
-                              <option key={idx} value={c.wallet}>
+                              <option
+                                key={idx}
+                                value={c.wallet}
+                                className="text-black bg-white"
+                              >
                                 {c.username} — {c.wallet}
                               </option>
                             ))}
                           </select>
 
-                          {/* CONFIRM BUTTON */}
                           <Button
-                            className="mt-4 w-full"
+                            className="mt-4 w-full bg-green-600 hover:bg-green-700"
                             disabled={!transferState.selectedWallet}
                             onClick={async () => {
                               if (
@@ -281,14 +325,15 @@ export default function ManagePropertiesPage() {
                                 alert("Transfer Completed!");
                                 window.location.reload();
                               } catch (err: any) {
-                                alert("Transfer failed: " + err.message);
+                                alert(
+                                  "Transfer failed: " + err.message
+                                );
                               }
                             }}
                           >
                             Confirm Transfer
                           </Button>
 
-                          {/* CANCEL BUTTON */}
                           <Button
                             variant="destructive"
                             className="mt-2 w-full"

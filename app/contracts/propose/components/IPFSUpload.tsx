@@ -17,39 +17,31 @@ export default function IPFSUpload({ onCID }: { onCID: (cid: string) => void }) 
     if (dropped) setFile(dropped);
   };
 
-  // ---- Generate fake CID locally ----
-  async function generateFakeCID(file: File): Promise<string> {
-    const buffer = await file.arrayBuffer();
-
-    // SHA-256
-    const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-
-    // Convert to Base32
-    const base32 = hashArray
-      .map((b) => b.toString(32).padStart(2, "0"))
-      .join("")
-      .slice(0, 46) // make it similar length to CIDv1
-      .toUpperCase();
-
-    // Return mock CIDv1 (prefix 'bafy' used by IPFS)
-    return `bafy${base32}`;
-  }
-
   const upload = async () => {
     if (!file) return;
 
     try {
       setLoading(true);
 
-      // Generate local hash-based CID
-      const fakeCID = await generateFakeCID(file);
+      const form = new FormData();
+      form.append("file", file);
 
-      setCid(fakeCID);
-      onCID(fakeCID);
+      const res = await fetch("/api/ipfs/upload", {
+        method: "POST",
+        body: form,
+      });
 
+      const data = await res.json();
+
+      if (data.cid) {
+        setCid(data.cid);
+        onCID(data.cid);
+      } else {
+        alert("IPFS upload failed");
+      }
     } catch (err) {
-      console.error("Local CID error:", err);
+      console.error(err);
+      alert("Upload error");
     } finally {
       setLoading(false);
     }
@@ -81,12 +73,12 @@ export default function IPFSUpload({ onCID }: { onCID: (cid: string) => void }) 
         {file && <p className="text-sm mt-3 text-green-400">Selected: {file.name}</p>}
 
         <Button className="mt-4 w-full" onClick={upload} disabled={!file || loading}>
-          {loading ? "Generating CID..." : "Generate CID"}
+          {loading ? "Uploading..." : "Upload to IPFS"}
         </Button>
 
         {cid && (
           <div className="mt-4">
-            <label className="text-sm text-gray-200">Generated Test CID</label>
+            <label className="text-sm text-gray-200">CID Generated</label>
             <Input value={cid} readOnly className="mt-1" />
           </div>
         )}

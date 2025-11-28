@@ -8,6 +8,16 @@ import {
 } from "@/utils/contract";
 import { getSigner } from "@/utils/web3";
 import { ethers } from "ethers";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+
+import {
+  Users,
+  UserPlus,
+  UserCheck,
+  Search,
+  Wallet,
+} from "lucide-react";
 
 export default function PeoplePage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -19,7 +29,7 @@ export default function PeoplePage() {
   const [me, setMe] = useState<string | null>(null);
   const [contacts, setContacts] = useState<any[]>([]);
 
-  /* Load all users + my contacts */
+  /* LOAD ALL USERS + CONTACTS */
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -41,15 +51,15 @@ export default function PeoplePage() {
     })();
   }, []);
 
-  /* Add contact using button OR input field */
+  /* ADD CONTACT */
   async function addContact(address: string) {
     setMsg(null);
-    if (!ethers.isAddress(address)) return setMsg("Invalid address");
+    if (!ethers.isAddress(address)) return setMsg("Invalid wallet address");
 
     try {
       setLoading(true);
       const receipt = await addContactByAddress(address);
-      setMsg(`Contact added — tx ${receipt.transactionHash}`);
+      setMsg(`Contact added — Tx: ${receipt.transactionHash}`);
 
       if (me) {
         const updated = await getContactsForWallet(me);
@@ -57,13 +67,12 @@ export default function PeoplePage() {
       }
     } catch (err: any) {
       console.error(err);
-      setMsg(err?.message || "Failed to add");
+      setMsg(err?.message || "Failed to add contact.");
     } finally {
       setLoading(false);
     }
   }
 
-  /* Submit form for manual entry */
   async function onAddContact(e: React.FormEvent) {
     e.preventDefault();
     if (!addrToAdd) return;
@@ -72,143 +81,152 @@ export default function PeoplePage() {
   }
 
   return (
-    <main style={{ padding: 24, display: "flex", gap: 20 }}>
+    <main className="p-8 min-h-screen bg-[#05070d] text-white">
+      <div className="flex gap-6">
 
-      {/* LEFT SIDE — ALL USERS */}
-      <section
-        style={{
-          flex: 1,
-          padding: 16,
-          border: "1px solid #ddd",
-          borderRadius: 10,
-          height: "85vh",
-          overflowY: "auto",
-        }}
-      >
-        <h2>All Registered Users</h2>
+        {/* LEFT PANEL — ALL USERS */}
+        <Card className="flex-1 bg-[#0c1020] border border-white/20 shadow-xl rounded-2xl p-6 max-h-[85vh] overflow-y-auto">
+          <CardContent className="space-y-6">
 
-        {loading && users.length === 0 ? (
-          <div>Loading users…</div>
-        ) : (
-          <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-            {users.length === 0 && <div>No users found.</div>}
-            {users.map((u, i) => {
-              const username = u.username ?? u[1] ?? u[0];
-              const wallet = u.wallet ?? u[0] ?? "—";
+            <div className="flex items-center gap-3">
+              <Users className="w-7 h-7 text-[#F5C542]" />
+              <h2 className="text-2xl font-bold text-[#F5C542]">All Registered Users</h2>
+            </div>
 
-              let prettyName = username;
-              try {
-                prettyName = ethers.decodeBytes32String(username);
-              } catch {}
+            {loading && users.length === 0 ? (
+              <p className="text-gray-400">Loading users…</p>
+            ) : (
+              <div className="grid gap-4">
+                {users.length === 0 && (
+                  <p className="text-gray-400">No users found.</p>
+                )}
 
-              const alreadyAdded = contacts.some((c: any) => {
-                const cw = typeof c === "string" ? c : c.wallet ?? c[0];
-                return cw?.toLowerCase() === wallet?.toLowerCase();
-              });
+                {users.map((u, idx) => {
+                  const username = u.username ?? u[1] ?? u[0];
+                  const wallet = u.wallet ?? u[0] ?? "—";
 
-              return (
-                <div
-                  key={i}
-                  style={{
-                    padding: 12,
-                    border: "1px solid #eee",
-                    borderRadius: 8,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <div>
-                    <strong>{prettyName}</strong>
-                    <div style={{ fontSize: 13, color: "#666" }}>{wallet}</div>
-                  </div>
+                  let prettyName = username;
+                  try {
+                    prettyName = ethers.decodeBytes32String(username);
+                  } catch {}
 
-                  {me?.toLowerCase() !== wallet?.toLowerCase() && (
-                    <button
-                      onClick={() => addContact(wallet)}
-                      disabled={loading || alreadyAdded}
+                  const alreadyAdded = contacts.some((c: any) => {
+                    const cw = typeof c === "string" ? c : c.wallet ?? c[0];
+                    return cw?.toLowerCase() === wallet?.toLowerCase();
+                  });
+
+                  return (
+                    <div
+                      key={idx}
+                      className="p-4 bg-[#111729] rounded-xl border border-white/10 shadow hover:border-[#F5C542] transition flex justify-between items-center"
                     >
-                      {alreadyAdded ? "Added" : "Add"}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                      <div>
+                        <p className="font-semibold text-lg text-white">{prettyName}</p>
 
-        {/* Optional manual address entry */}
-        <div style={{ marginTop: 20 }}>
-          <h4>Add Contact by Address</h4>
-          <form
-            onSubmit={onAddContact}
-            style={{ display: "flex", gap: 8, marginTop: 8 }}
-          >
-            <input
-              value={addrToAdd}
-              onChange={(e) => setAddrToAdd(e.target.value)}
-              placeholder="0xabc..."
-              style={{ padding: 8, flex: 1 }}
-            />
-            <button type="submit" disabled={loading}>
-              Add
-            </button>
-          </form>
-        </div>
+                        <p className="flex items-center gap-2 text-gray-400 text-sm break-all">
+                          <Wallet className="w-4 h-4 text-[#F5C542]" />
+                          {wallet}
+                        </p>
+                      </div>
 
-        {msg && (
-          <div style={{ marginTop: 10, color: "#a33", fontSize: 14 }}>
-            {msg}
-          </div>
-        )}
-      </section>
+                      {me?.toLowerCase() !== wallet?.toLowerCase() && (
+                        <Button
+                          onClick={() => addContact(wallet)}
+                          disabled={loading || alreadyAdded}
+                          className={`${
+                            alreadyAdded
+                              ? "bg-green-700 hover:bg-green-800"
+                              : "bg-[#F5C542] text-gray-900 hover:bg-[#d5a52f]"
+                          }`}
+                        >
+                          {alreadyAdded ? (
+                            <span className="flex items-center gap-2">
+                              <UserCheck className="w-4 h-4" /> Added
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-2">
+                              <UserPlus className="w-4 h-4" /> Add
+                            </span>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
-      {/* RIGHT SIDE — MY CONTACTS */}
-      <section
-        style={{
-          width: "40%",
-          padding: 16,
-          border: "1px solid #ddd",
-          borderRadius: 10,
-          height: "85vh",
-          overflowY: "auto",
-        }}
-      >
-        <h2>My Contacts</h2>
+            {/* ADD CONTACT MANUALLY */}
+            <div className="mt-6 p-4 bg-[#111729] rounded-xl border border-white/10 shadow">
+              <h4 className="font-semibold text-lg mb-2 flex items-center gap-2">
+                <Search className="w-5 h-5 text-[#F5C542]" /> Add Contact by Address
+              </h4>
 
-        {contacts.length === 0 ? (
-          <div style={{ marginTop: 10 }}>No contacts yet.</div>
-        ) : (
-          <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-            {contacts.map((c, idx) => {
-              const addr =
-                typeof c === "string"
-                  ? c
-                  : c.wallet ?? c[0] ?? String(c);
-
-              const rawName = c.username ?? c[1] ?? "";
-              let uname = rawName;
-              try {
-                uname = ethers.decodeBytes32String(rawName);
-              } catch {}
-
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    padding: 10,
-                    border: "1px solid #eee",
-                    borderRadius: 8,
-                  }}
+              <form onSubmit={onAddContact} className="flex gap-3 mt-3">
+                <input
+                  value={addrToAdd}
+                  onChange={(e) => setAddrToAdd(e.target.value)}
+                  className="flex-1 bg-[#0d1323] border border-white/20 rounded-xl px-4 py-2 text-gray-200 focus:border-[#F5C542]"
+                  placeholder="0xabc..."
+                />
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="bg-[#F5C542] text-gray-900 hover:bg-[#d5a52f]"
                 >
-                  <strong>{uname}</strong>
-                  <div style={{ fontSize: 13, color: "#666" }}>{addr}</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+                  Add
+                </Button>
+              </form>
+
+              {msg && <p className="text-red-400 text-sm mt-3">{msg}</p>}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* RIGHT PANEL — CONTACTS */}
+        <Card className="w-[35%] bg-[#0c1020] border border-white/20 shadow-xl rounded-2xl p-6 max-h-[85vh] overflow-y-auto">
+          <CardContent className="space-y-6">
+
+            <div className="flex items-center gap-3">
+              <UserCheck className="w-7 h-7 text-[#F5C542]" />
+              <h2 className="text-2xl font-bold text-[#F5C542]">My Contacts</h2>
+            </div>
+
+            {contacts.length === 0 ? (
+              <p className="text-gray-400">You have no contacts added yet.</p>
+            ) : (
+              <div className="grid gap-4">
+                {contacts.map((c, idx) => {
+                  const addr =
+                    typeof c === "string"
+                      ? c
+                      : c.wallet ?? c[0] ?? String(c);
+
+                  const rawName = c.username ?? c[1] ?? "";
+                  let uname = rawName;
+                  try {
+                    uname = ethers.decodeBytes32String(rawName);
+                  } catch {}
+
+                  return (
+                    <div
+                      key={idx}
+                      className="p-4 bg-[#111729] rounded-xl border border-white/10 shadow"
+                    >
+                      <p className="font-semibold text-lg text-white">{uname}</p>
+
+                      <p className="flex items-center gap-2 text-gray-400 text-sm break-all mt-1">
+                        <Wallet className="w-4 h-4 text-[#F5C542]" />
+                        {addr}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }

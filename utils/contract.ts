@@ -1,4 +1,3 @@
-// utils/contract.ts
 import { Contract, InfuraProvider, type Provider, type Signer, ethers } from "ethers";
 import { getSigner } from "./web3";
 import { CONTRACT_ADDRESS, INFURA_PROJECT_KEY, NETWORK_NAME } from "./keyConstants";
@@ -27,6 +26,7 @@ export function fromBytes32String(b32: string): string {
     return String(b32);
   }
 }
+
 
 export function ipfsCidToBytes32Hash(cid: string): string {
   return ethers.keccak256(ethers.toUtf8Bytes(cid));
@@ -100,12 +100,13 @@ export async function getContactsForWallet(walletAddr: string) {
 /* --------------------------------------------------
    MULTI-PARTY CONTRACTS
 ----------------------------------------------------- */
+
 export async function createMPContract(ipfsCID: string, partyAddresses: string[]) {
   const signer = await getSigner();
   const contract = getContract(signer);
 
   return (
-    await contract.createContract(ipfsCidToBytes32Hash(ipfsCID), partyAddresses)
+    await contract.createContract(ipfsCID, partyAddresses)
   ).wait();
 }
 
@@ -171,7 +172,7 @@ export async function getContractInfo(contractId: number) {
 
   return {
     id: Number(info[0]),
-    cidHash: info[1],
+    cid: String(info[1]),          
     creator: String(info[2]),
     signers: info[3].map((s: string) => String(s)),
     status: Number(info[4]),
@@ -212,9 +213,7 @@ export async function registerProperty(ipfsCID: string) {
   const signer = await getSigner();
   const contract = getContract(signer);
 
-  const hash = ipfsCidToBytes32Hash(ipfsCID);
-  const tx = await contract.registerProperty(hash);
-
+  const tx = await contract.registerProperty(ipfsCID);
   return tx.wait();
 }
 
@@ -353,11 +352,6 @@ function toBigInt(value: number | string | bigint): bigint {
   throw new Error("price must be integer (wei) as number|string|bigint");
 }
 
-// -----------------------------
-// Seller: Propose sale (seller chooses buyer)
-// Solidity signature assumed: proposePropertySale(uint256 propertyId, uint256 price, address buyer)
-// Note: Some contract variants had different arg order — ensure it matches your deployed ABI.
-// -----------------------------
 export async function proposePropertySale(
   propertyId: number,
   priceWei: number | string | bigint,
@@ -408,11 +402,6 @@ export async function getOutgoingSaleRequests(seller: string): Promise<number[]>
     return [];
   }
 }
-// -----------------------------
-// Get sale details (wrapper for contract getter)
-// Uses contract.getPropertySaleDetails(propertyId) or contract.sales(propertyId) depending on ABI.
-// We call getPropertySaleDetails if available; if not, fallback to sales mapping.
-// -----------------------------
 export async function getSaleDetails(propertyId: number): Promise<SaleData | null> {
   try {
     const contract = getContract();
